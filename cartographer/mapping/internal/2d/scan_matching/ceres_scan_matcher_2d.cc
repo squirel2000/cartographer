@@ -69,6 +69,7 @@ void CeresScanMatcher2D::Match(const Eigen::Vector2d& target_translation,
   double ceres_pose_estimate[3] = {initial_pose_estimate.translation().x(),
                                    initial_pose_estimate.translation().y(),
                                    initial_pose_estimate.rotation().angle()};
+  // 通过接口AddResidualBlock添加残差项。从代码看来，残差主要有三个方面的来源：(1) 占用栅格与扫描数据的匹配度，(2) 优化后的位置相对于target_translation的距离， (3) 旋转角度相对于迭代初值的偏差
   ceres::Problem problem;
   CHECK_GT(options_.occupied_space_weight(), 0.);
   switch (grid.GetGridType()) {
@@ -100,6 +101,7 @@ void CeresScanMatcher2D::Match(const Eigen::Vector2d& target_translation,
           options_.rotation_weight(), ceres_pose_estimate[2]),
       nullptr /* loss function */, ceres_pose_estimate);
 
+  // 求解并更新位姿估计
   ceres::Solve(ceres_solver_options_, &problem, summary);
 
   *pose_estimate = transform::Rigid2d(

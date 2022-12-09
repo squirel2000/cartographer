@@ -92,6 +92,7 @@ PaintSubmapSlicesResult PaintSubmapSlices(
         });
   }
 
+  // Padding the bounding box with 2 * 5 (kPaddingPixel) pixels at both horizontal and vertical directions
   const int kPaddingPixel = 5;
   const Eigen::Array2i size(
       std::ceil(bounding_box.sizes().x()) + 2 * kPaddingPixel,

@@ -60,6 +60,7 @@ class TrajectoryConnectivityState {
   common::Time LastConnectionTime(int trajectory_id_a, int trajectory_id_b);
 
  private:
+  // 所有的连接关系都存储在connected_components_这个成员函数中。除此之外还增加了记录last connection time的成员函数last_connection_time_map_.
   // ConnectedComponents are thread safe.
   mutable ConnectedComponents connected_components_;
 

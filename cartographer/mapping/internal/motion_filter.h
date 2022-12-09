@@ -24,6 +24,7 @@
 #include "cartographer/mapping/proto/motion_filter_options.pb.h"
 #include "cartographer/transform/rigid_transform.h"
 
+// 主要作用是对数据进行一下滤波。当两帧数据的间隔时间/两帧的Pose跨过的距离/两帧的Pose转过的角度等不超过一定的阈值时，认为新的数据提供的信息很少，这些数据可以直接舍去。
 namespace cartographer {
 namespace mapping {
 
@@ -41,9 +42,9 @@ class MotionFilter {
   bool IsSimilar(common::Time time, const transform::Rigid3d& pose);
 
  private:
-  const proto::MotionFilterOptions options_;
+  const proto::MotionFilterOptions options_;  // 配置项，主要包括最大时间间隔、最大角度间隔、最大距离间隔等
   int num_total_ = 0;
-  int num_different_ = 0;
+  int num_different_ = 0; //过滤之后剩下的pose数
   common::Time last_time_;
   transform::Rigid3d last_pose_;
 };

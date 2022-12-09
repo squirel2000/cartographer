@@ -25,11 +25,12 @@
 #include "cartographer/mapping/proto/map_builder_options.pb.h"
 #include "cartographer/sensor/collator_interface.h"
 
+// trajectory是机器人跑一圈时的轨迹，在这其中需要记录和维护传感器的数据。根据这个trajectory上传感器收集的数据，我们可以逐步构建出栅格化的地图Submap，但这个submap会随着时间或trajectory的增长而产生误差累积，但trajectory增长到超过一个阈值，则会新增一个submap。而PoseGraph是用来进行全局优化，将所有的Submap紧紧tie在一起，构成一个全局的Map，消除误差累积。
 namespace cartographer {
 namespace mapping {
 
-// Wires up the complete SLAM stack with TrajectoryBuilders (for local submaps)
-// and a PoseGraph for loop closure.
+// MapBuilder是对MapBuilderInterface的继承和实现，MapBuilder中的方法都已经在MapBuilderInterface中定义
+// Wires up the complete SLAM stack with TrajectoryBuilders (for local submaps) and a PoseGraph for loop closure.
 class MapBuilder : public MapBuilderInterface {
  public:
   explicit MapBuilder(const proto::MapBuilderOptions &options);
@@ -38,6 +39,7 @@ class MapBuilder : public MapBuilderInterface {
   MapBuilder(const MapBuilder &) = delete;
   MapBuilder &operator=(const MapBuilder &) = delete;
 
+  // 用于建立子图的轨迹跟踪器的对象则需要通过调用接口AddTrajectoryBuilder来完成构建
   int AddTrajectoryBuilder(
       const std::set<SensorId> &expected_sensor_ids,
       const proto::TrajectoryBuilderOptions &trajectory_options,
@@ -84,11 +86,13 @@ class MapBuilder : public MapBuilderInterface {
 
  private:
   const proto::MapBuilderOptions options_;
-  common::ThreadPool thread_pool_;
-
-  std::unique_ptr<PoseGraph> pose_graph_;
+  // Cartographer使用类ThreadPool对C++11的线程进行了封装，用于方便高效的管理多线程
+  common::ThreadPool thread_pool_;  
+  // 对于同一个Map，只需要有一个全局的PoseGraph来维护即可,所以，在MapBuilder的成员变量中，定义了一个PoseGraph类型的智能指针：
+  std::unique_ptr<PoseGraph> pose_graph_; // Used for loop closure and global optimization
 
   std::unique_ptr<sensor::CollatorInterface> sensor_collator_;
+  // 在系统运行的过程中，可能有不止一条轨迹，针对每一条轨迹Cartographer都建立了一个轨迹跟踪器。
   std::vector<std::unique_ptr<mapping::TrajectoryBuilderInterface>>
       trajectory_builders_;
   std::vector<proto::TrajectoryBuilderOptionsWithSensorIds>

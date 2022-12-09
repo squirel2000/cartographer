@@ -15,6 +15,8 @@
  */
 
 #include "cartographer/io/proto_stream.h"
+#include "google/protobuf/io/zero_copy_stream_impl.h" // Needed by TextFormat::print()
+#include "google/protobuf/text_format.h"              // Needed by TextFormat::PrintToString(mrlist, &str)
 
 #include "glog/logging.h"
 
@@ -59,6 +61,11 @@ void ProtoStreamWriter::Write(const std::string& uncompressed_data) {
 void ProtoStreamWriter::WriteProto(const google::protobuf::Message& proto) {
   std::string uncompressed_data;
   proto.SerializeToString(&uncompressed_data);
+
+  // Parsing and Serialization (https://developers.google.com/protocol-buffers/docs/cpptutorial#standard-message-methods)
+  std::cout << "\n" << uncompressed_data << std::endl;
+  LOG(INFO) << uncompressed_data;
+
   Write(uncompressed_data);
 }
 
@@ -91,6 +98,9 @@ bool ProtoStreamReader::Read(std::string* decompressed_data) {
 
 bool ProtoStreamReader::ReadProto(google::protobuf::Message* proto) {
   std::string decompressed_data;
+  
+  // How to know the data structure of the "decompressed_data"? 
+  // How to pass the decompressed_data upward to the node?
   return Read(&decompressed_data) && proto->ParseFromString(decompressed_data);
 }
 

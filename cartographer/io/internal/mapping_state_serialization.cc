@@ -217,6 +217,7 @@ void WritePbStream(
         trajectory_builder_options,
     ProtoStreamWriterInterface* const writer, bool include_unfinished_submaps) {
   writer->WriteProto(CreateHeader());
+
   writer->WriteProto(
       SerializePoseGraph(pose_graph, include_unfinished_submaps));
   writer->WriteProto(SerializeTrajectoryBuilderOptions(

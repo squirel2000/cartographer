@@ -31,6 +31,7 @@
 namespace cartographer {
 namespace mapping {
 
+// 当一个submap由Active转为kFinished时，所有的Nodes都要跟该submap做一个匹配。同样的，当在trajectory增长的过程中又有新增的Nodes，这些新的Nodes也需要跟所有已经finished的submap做一下match
 // The current state of the submap in the background threads. After this
 // transitions to 'kFinished', all nodes are tried to match
 // against this submap. Likewise, all new nodes are matched against submaps in

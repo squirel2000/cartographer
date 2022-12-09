@@ -30,9 +30,9 @@ namespace sensor {
 // was detected, and were inserted at a configured distance. It is assumed that
 // between the 'origin' and 'misses' is free space.
 struct RangeData {
-  Eigen::Vector3f origin;
-  PointCloud returns;
-  PointCloud misses;
+  Eigen::Vector3f origin; //这一帧数据的原点。
+  PointCloud returns; // returns是那些检测到了hits的点，那么被Hits的点加入hits这个集合，相应地更改submap中的信息。而origin和hits中间的点也是Free的，需要归入到misses集合中。
+  PointCloud misses;  // misses是那些没有检测到return的点，原点和misses形成的射线上的所有点都是free Space，都需要归入misses集合中
 };
 
 RangeData TransformRangeData(const RangeData& range_data,

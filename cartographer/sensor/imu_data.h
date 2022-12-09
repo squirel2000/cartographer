@@ -24,6 +24,7 @@
 namespace cartographer {
 namespace sensor {
 
+// 没有记录机器人的姿态，因为在Cartographer中有专门的class来根据传感器的原始数据结算位姿
 struct ImuData {
   common::Time time;
   Eigen::Vector3d linear_acceleration;

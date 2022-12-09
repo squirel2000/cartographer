@@ -83,6 +83,7 @@ class PoseGraph2D : public PoseGraph {
       const std::vector<std::shared_ptr<const Submap2D>>& insertion_submaps)
       LOCKS_EXCLUDED(mutex_);
 
+  // 对于IMU和里程计数据而言，他们的局部信息是比较可靠的，所以在每次有新的观察结果时立刻交给OptimizationProblem进行处理。但对于Landmark的数据而言，cartographer认为Landmark的绝对位姿是已知的，而机器人在行进过程中可能会多次观察landmark，因此，landmark并不是有观测后就立刻处理，而是在进行Loop Closure之前才调用，在调用时可能观察到多次，遍历这些观测数据，并把他们放到landmark_nodes_这个容器中，然后在Loop Closure时一起优化
   void AddImuData(int trajectory_id, const sensor::ImuData& imu_data) override
       LOCKS_EXCLUDED(mutex_);
   void AddOdometryData(int trajectory_id,
@@ -160,8 +161,10 @@ class PoseGraph2D : public PoseGraph {
   static void RegisterMetrics(metrics::FamilyFactory* family_factory);
 
  private:
-  MapById<SubmapId, PoseGraphInterface::SubmapData> GetSubmapDataUnderLock()
-      const EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  //  MapById中的Map跟cartographer中建图的map和submap的概念没有任何关系。这里的MapById只是cartographer对C++ std::map的一个封装实现。它只是一个容器类。
+  // std::map(std:map)中，元素是以一个key value和一个mapped value的组和形式以特定顺序存储的。其中key values通常用来排序以及唯一地确定一个元素，而mapped values存储的是跟该key value相对应的内容。key value和mapped value的数据格式可以完全不同。
+  // 而cartographer中的MapById也是这样一个容器，但其中key value限制为了IdType型，作者希望地就是以NodeId或SubmapId为索引来存储元素。其中MapById中的一个成员函数：
+  MapById<SubmapId, PoseGraphInterface::SubmapData> GetSubmapDataUnderLock() const EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   // Handles a new work item.
   void AddWorkItem(const std::function<WorkItem::Result()>& work_item)
@@ -200,6 +203,7 @@ class PoseGraph2D : public PoseGraph {
   // constraint search.
   void DeleteTrajectoriesIfNeeded() EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
+  // 该函数的主要工作就是处理由ConstraintBuilder2D建立起来的约束关系。
   // Runs the optimization, executes the trimmers and processes the work queue.
   void HandleWorkQueue(const constraints::ConstraintBuilder2D::Result& result)
       LOCKS_EXCLUDED(mutex_) LOCKS_EXCLUDED(work_queue_mutex_);

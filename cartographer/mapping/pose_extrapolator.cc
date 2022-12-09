@@ -58,6 +58,7 @@ common::Time PoseExtrapolator::GetLastPoseTime() const {
   return timed_pose_queue_.back().time;
 }
 
+// 返回解算结果的最新时间
 common::Time PoseExtrapolator::GetLastExtrapolatedTime() const {
   if (!extrapolation_imu_tracker_) {
     return common::Time::min();
@@ -65,17 +66,19 @@ common::Time PoseExtrapolator::GetLastExtrapolatedTime() const {
   return extrapolation_imu_tracker_->time();
 }
 
+// 在时刻time往Pose队列中添加一个Pose
 void PoseExtrapolator::AddPose(const common::Time time,
                                const transform::Rigid3d& pose) {
   if (imu_tracker_ == nullptr) {
     common::Time tracker_start = time;
-    if (!imu_data_.empty()) {
+    if (!imu_data_.empty()) {// 如果IMU数据队列不为空，则以当前时间和IMU数据中的最早时刻的较小值为初始时刻建立一个ImuTracker
       tracker_start = std::min(tracker_start, imu_data_.front().time);
     }
     imu_tracker_ =
         absl::make_unique<ImuTracker>(gravity_time_constant_, tracker_start);
   }
   timed_pose_queue_.push_back(TimedPose{time, pose});
+  //Pose队列大于2，并且时间间隔已经大于我们设定的pose_queue_duration_时，则把队列之前的元素删除
   while (timed_pose_queue_.size() > 2 &&
          timed_pose_queue_[1].time <= time - pose_queue_duration_) {
     timed_pose_queue_.pop_front();
@@ -84,10 +87,12 @@ void PoseExtrapolator::AddPose(const common::Time time,
   AdvanceImuTracker(time, imu_tracker_.get());
   TrimImuData();
   TrimOdometryData();
+  // 里程计和融合结果都以当前IMU的tracker为准。
   odometry_imu_tracker_ = absl::make_unique<ImuTracker>(*imu_tracker_);
   extrapolation_imu_tracker_ = absl::make_unique<ImuTracker>(*imu_tracker_);
 }
 
+// 把新的IMU数据添加到队列中，删去队列中的过期数据
 void PoseExtrapolator::AddImuData(const sensor::ImuData& imu_data) {
   CHECK(timed_pose_queue_.empty() ||
         imu_data.time >= timed_pose_queue_.back().time);
@@ -106,12 +111,13 @@ void PoseExtrapolator::AddOdometryData(
   }
   // TODO(whess): Improve by using more than just the last two odometry poses.
   // Compute extrapolation in the tracking frame.
-  const sensor::OdometryData& odometry_data_oldest = odometry_data_.front();
+  const sensor::OdometryData& odometry_data_oldest = odometry_data_.front();  // Why not just compute the last two odometry poses
   const sensor::OdometryData& odometry_data_newest = odometry_data_.back();
   const double odometry_time_delta =
       common::ToSeconds(odometry_data_oldest.time - odometry_data_newest.time);
   const transform::Rigid3d odometry_pose_delta =
       odometry_data_newest.pose.inverse() * odometry_data_oldest.pose;
+  // 姿态变化量除以时间得到角速度
   angular_velocity_from_odometry_ =
       transform::RotationQuaternionToAngleAxisVector(
           odometry_pose_delta.rotation()) /
@@ -159,8 +165,10 @@ void PoseExtrapolator::UpdateVelocitiesFromPoses() {
     return;
   }
   CHECK(!timed_pose_queue_.empty());
+  // 取出队列最末尾的一个Pose,也就是最新时间点的Pose,并记录相应的时间
   const TimedPose& newest_timed_pose = timed_pose_queue_.back();
   const auto newest_time = newest_timed_pose.time;
+  // 取出队列最开头的一个Pose，也就是最旧时间点的Pose,并记录相应的时间
   const TimedPose& oldest_timed_pose = timed_pose_queue_.front();
   const auto oldest_time = oldest_timed_pose.time;
   const double queue_delta = common::ToSeconds(newest_time - oldest_time);
@@ -169,6 +177,7 @@ void PoseExtrapolator::UpdateVelocitiesFromPoses() {
                  << queue_delta << " s";
     return;
   }
+  // 取出timed_pose_queue_这个队列中最早和最新的两个Pose做差，然后除以时间得到机器人的速度。
   const transform::Rigid3d& newest_pose = newest_timed_pose.pose;
   const transform::Rigid3d& oldest_pose = oldest_timed_pose.pose;
   linear_velocity_from_poses_ =
@@ -180,6 +189,9 @@ void PoseExtrapolator::UpdateVelocitiesFromPoses() {
 }
 
 void PoseExtrapolator::TrimImuData() {
+  // 删去队列中无用的IMU数据, 需要满足三个条件：IMU数据队列大于1，Pose的队列不为空，IMU数据队列的第一个元素时间小于Pose队列的最后一个元素的时间
+  // 最后一个条件意味着当IMU数据的时间比一个最新的Pose的时间要早时，说明这个IMU数据已经过期了。所以从队列中删掉就可以了。
+  // 知道IMU数据的时间要比最新的Pose时间晚，那么说明这时候这个数据还有用。这种情况就不再删了，跳出循环，等待其他程序取出队列最开头的IMU数据进行融合
   while (imu_data_.size() > 1 && !timed_pose_queue_.empty() &&
          imu_data_[1].time <= timed_pose_queue_.back().time) {
     imu_data_.pop_front();
@@ -193,6 +205,7 @@ void PoseExtrapolator::TrimOdometryData() {
   }
 }
 
+// 从IMU数据队列中取出最新的数据，更新ImuTracker的状态到指定的时间time
 void PoseExtrapolator::AdvanceImuTracker(const common::Time time,
                                          ImuTracker* const imu_tracker) const {
   CHECK_GE(time, imu_tracker->time());
@@ -207,9 +220,10 @@ void PoseExtrapolator::AdvanceImuTracker(const common::Time time,
     return;
   }
   if (imu_tracker->time() < imu_data_.front().time) {
-    // Advance to the beginning of 'imu_data_'.
+    // Advance to the beginning of 'imu_data_'. // 先把ImuTracker更新到IMU数据来临的那一刻
     imu_tracker->Advance(imu_data_.front().time);
   }
+  //然后依次取出IMU数据队列中的数据，更新ImuTracker，直到IMU数据的时间比指定时间time要晚。
   auto it = std::lower_bound(
       imu_data_.begin(), imu_data_.end(), imu_tracker->time(),
       [](const sensor::ImuData& imu_data, const common::Time& time) {
@@ -229,6 +243,7 @@ Eigen::Quaterniond PoseExtrapolator::ExtrapolateRotation(
   CHECK_GE(time, imu_tracker->time());
   AdvanceImuTracker(time, imu_tracker);
   const Eigen::Quaterniond last_orientation = imu_tracker_->orientation();
+  // 求取姿态变化量：上一时刻姿态的逆乘以当前的姿态
   return last_orientation.inverse() * imu_tracker->orientation();
 }
 
@@ -236,9 +251,11 @@ Eigen::Vector3d PoseExtrapolator::ExtrapolateTranslation(common::Time time) {
   const TimedPose& newest_timed_pose = timed_pose_queue_.back();
   const double extrapolation_delta =
       common::ToSeconds(time - newest_timed_pose.time);
+  // 如果有里程计数据，则更信任里程计速度，直接把从里程计处获得的线速度乘以时间
   if (odometry_data_.size() < 2) {
     return extrapolation_delta * linear_velocity_from_poses_;
   }
+  // 没有里程计数据的话则把从Pose队列中估计的线速度乘以时间
   return extrapolation_delta * linear_velocity_from_odometry_;
 }
 

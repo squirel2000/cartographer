@@ -75,19 +75,23 @@ std::unique_ptr<transform::Rigid2d> LocalTrajectoryBuilder2D::ScanMatch(
   transform::Rigid2d initial_ceres_pose = pose_prediction;
 
   if (options_.use_online_correlative_scan_matching()) {
+    // real_time_correlative_scan_matcher.cc in
+    // cartographer/mapping/internal/scan_matching
     const double score = real_time_correlative_scan_matcher_.Match(
         pose_prediction, filtered_gravity_aligned_point_cloud,
         *matching_submap->grid(), &initial_ceres_pose);
     kRealTimeCorrelativeScanMatcherScoreMetric->Observe(score);
   }
 
+  // Use ceres to solve the scan-matching optimization problem to estimate the best pose_observation
   auto pose_observation = absl::make_unique<transform::Rigid2d>();
   ceres::Solver::Summary summary;
   ceres_scan_matcher_.Match(pose_prediction.translation(), initial_ceres_pose,
                             filtered_gravity_aligned_point_cloud,
                             *matching_submap->grid(), pose_observation.get(),
-                            &summary);
+                            &summary);  
   if (pose_observation) {
+    // Calculate the residual distance and angle between the pose_prediction and the pose_observation
     kCeresScanMatcherCostMetric->Observe(summary.final_cost);
     const double residual_distance =
         (pose_observation->translation() - pose_prediction.translation())
@@ -101,10 +105,13 @@ std::unique_ptr<transform::Rigid2d> LocalTrajectoryBuilder2D::ScanMatch(
   return pose_observation;
 }
 
+/// @brief Synchronize the range data and time, and then use
+/// AddAccumulatedRangeData() to generate a submap
 std::unique_ptr<LocalTrajectoryBuilder2D::MatchingResult>
 LocalTrajectoryBuilder2D::AddRangeData(
     const std::string& sensor_id,
     const sensor::TimedPointCloudData& unsynchronized_data) {
+  
   auto synchronized_data =
       range_data_collator_.AddRangeData(sensor_id, unsynchronized_data);
   if (synchronized_data.ranges.empty()) {
@@ -113,7 +120,7 @@ LocalTrajectoryBuilder2D::AddRangeData(
   }
 
   const common::Time& time = synchronized_data.time;
-  // Initialize extrapolator now if we do not ever use an IMU.
+  // Initialize extrapolator to estimate the pose now if we do not ever use an IMU.
   if (!options_.use_imu_data()) {
     InitializeExtrapolator(time);
   }
@@ -136,6 +143,7 @@ LocalTrajectoryBuilder2D::AddRangeData(
     return nullptr;
   }
 
+  // Convert the synchronized range data to the pose w.r.t the robot
   std::vector<transform::Rigid3f> range_data_poses;
   range_data_poses.reserve(synchronized_data.ranges.size());
   bool warned = false;
@@ -165,9 +173,13 @@ LocalTrajectoryBuilder2D::AddRangeData(
   for (size_t i = 0; i < synchronized_data.ranges.size(); ++i) {
     const sensor::TimedRangefinderPoint& hit =
         synchronized_data.ranges[i].point_time;
+
+    // Convert the synchronized range data into the pose w.r.t the robot
     const Eigen::Vector3f origin_in_local =
         range_data_poses[i] *
         synchronized_data.origins.at(synchronized_data.ranges[i].origin_index);
+
+    // Calculate the difference between hit_in_local and origin_in_local (origin of the local trajectory?)
     sensor::RangefinderPoint hit_in_local =
         range_data_poses[i] * sensor::ToRangefinderPoint(hit);
     const Eigen::Vector3f delta = hit_in_local.position - origin_in_local;
@@ -185,6 +197,7 @@ LocalTrajectoryBuilder2D::AddRangeData(
   }
   ++num_accumulated_;
 
+  // Insert the AccumulatedRangeData, in this case num_accumulated_range_data == 1
   if (num_accumulated_ >= options_.num_accumulated_range_data()) {
     const common::Time current_sensor_time = synchronized_data.time;
     absl::optional<common::Duration> sensor_duration;
@@ -196,7 +209,7 @@ LocalTrajectoryBuilder2D::AddRangeData(
     const transform::Rigid3d gravity_alignment = transform::Rigid3d::Rotation(
         extrapolator_->EstimateGravityOrientation(time));
     // TODO(gaschler): This assumes that 'range_data_poses.back()' is at time
-    // 'time'.
+    // 'time', and only translation (x,y,z) is taken.
     accumulated_range_data_.origin = range_data_poses.back().translation();
     return AddAccumulatedRangeData(
         time,
@@ -208,6 +221,9 @@ LocalTrajectoryBuilder2D::AddRangeData(
   return nullptr;
 }
 
+
+/// @brief 
+/// @return matching result of the submap including the estimated pose, range_data_in_local
 std::unique_ptr<LocalTrajectoryBuilder2D::MatchingResult>
 LocalTrajectoryBuilder2D::AddAccumulatedRangeData(
     const common::Time time,
@@ -225,6 +241,8 @@ LocalTrajectoryBuilder2D::AddAccumulatedRangeData(
   const transform::Rigid2d pose_prediction = transform::Project2D(
       non_gravity_aligned_pose_prediction * gravity_alignment.inverse());
 
+  // adaptive_voxel_filter = {max_length = 0.5, min_num_points = 200, max_range
+  // = 50., },
   const sensor::PointCloud& filtered_gravity_aligned_point_cloud =
       sensor::AdaptiveVoxelFilter(gravity_aligned_range_data.returns,
                                   options_.adaptive_voxel_filter_options());
@@ -232,7 +250,7 @@ LocalTrajectoryBuilder2D::AddAccumulatedRangeData(
     return nullptr;
   }
 
-  // local map frame <- gravity-aligned frame
+  // Insert the arange_data_in_local into the submap based on the local map frame <- gravity-aligned frame
   std::unique_ptr<transform::Rigid2d> pose_estimate_2d =
       ScanMatch(time, pose_prediction, filtered_gravity_aligned_point_cloud);
   if (pose_estimate_2d == nullptr) {
@@ -250,6 +268,7 @@ LocalTrajectoryBuilder2D::AddAccumulatedRangeData(
       time, range_data_in_local, filtered_gravity_aligned_point_cloud,
       pose_estimate, gravity_alignment.rotation());
 
+  // Estimate the latencyMetric and cpu_time
   const auto wall_time = std::chrono::steady_clock::now();
   if (last_wall_time_.has_value()) {
     const auto wall_time_duration = wall_time - last_wall_time_.value();
@@ -282,11 +301,13 @@ LocalTrajectoryBuilder2D::InsertIntoSubmap(
     const sensor::PointCloud& filtered_gravity_aligned_point_cloud,
     const transform::Rigid3d& pose_estimate,
     const Eigen::Quaterniond& gravity_alignment) {
+  
   if (motion_filter_.IsSimilar(time, pose_estimate)) {
     return nullptr;
   }
   std::vector<std::shared_ptr<const Submap2D>> insertion_submaps =
       active_submaps_.InsertRangeData(range_data_in_local);
+  // InsertionResult including TrajectoryNode and submaps
   return absl::make_unique<InsertionResult>(InsertionResult{
       std::make_shared<const TrajectoryNode::Data>(TrajectoryNode::Data{
           time,

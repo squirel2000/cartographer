@@ -37,6 +37,24 @@ enum class GridType { PROBABILITY_GRID, TSDF };
 
 class Grid2D : public GridInterface {
  public:
+  // MapLimits定义在/mapping/2d/map_limits.h中；
+  // MapLimits包含三个成员变量：double resolution_;分辨率 程序中设置是0.05m.也就是5cm。
+  //                         Eigen::Vector2d max_;这是一个浮点型二维向量，max_.x()和.y()分别表示x、y方向的最大值
+  //                         CellLimits cell_limits_;栅格化后的x和y方向的最大范围。
+  //        CellLimits定义在/mapping/2d/xy_index.h中，包括两个int型成员变量
+  //                         int num_x_cells;x方向划分的栅格数，也是pixel坐标情况下的最大范围
+  //                         int num_y_cells;y方向划分的栅格数，
+  // 在MapLimits中根据最大范围max_和分辨率resolution就可以创建cell_limits
+  // MapLimits这个类也提供了如下函数：
+  // MapLimits::resulution()、MapLimits::max()、MapLimits::cell_limits()
+  // 分别获取分辨率、最大范围值、pixel坐标的最大范围等。
+  // MapLimits::GetcellIndex(const Eigen::Vector2f& point)
+  // 给出一个point在Submap中的坐标，求其pixel坐标
+  // MapLimits::Contains(const Eigen::Array2i& cell_index)
+  // 返回布尔型，判断所给pixel坐标是否大于0，小于等于最大值
+  // min_correspondence_cost和max_correspondence_cost
+  // 分别是一个pixel坐标是否不被occupied的概率的最小最大值
+  // probability表示一个pixel坐标被occupied的概率； probability + correspondence_cost = 1
   Grid2D(const MapLimits& limits, float min_correspondence_cost,
          float max_correspondence_cost,
          ValueConversionTables* conversion_tables);
@@ -117,13 +135,14 @@ class Grid2D : public GridInterface {
 
  private:
   MapLimits limits_;
-  std::vector<uint16> correspondence_cost_cells_;
-  float min_correspondence_cost_;
+  // 记录各个栅格单元的空闲概率pfree，0表示对应栅格概率未知，[1, 32767]表示空闲概率，可以通过一对儿函数CorrespondenceCostToValue和ValueToCorrespondenceCost相互转换。 Cartographer通过查表的方式更新栅格单元的占用概率。
+  std::vector<uint16> correspondence_cost_cells_;//存储概率值，这里的概率值是Free的概率值
+  float min_correspondence_cost_; // pfree的最小值
   float max_correspondence_cost_;
   std::vector<int> update_indices_;
 
   // Bounding box of known cells to efficiently compute cropping limits.
-  Eigen::AlignedBox2i known_cells_box_;
+  Eigen::AlignedBox2i known_cells_box_;//存放Submap已经赋值过的一个子区域的盒子。
   const std::vector<float>* value_to_correspondence_cost_table_;
 };
 

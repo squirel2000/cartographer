@@ -42,11 +42,14 @@ proto::SubmapsOptions2D CreateSubmapsOptions2D(
 
 class Submap2D : public Submap {
  public:
+  // 第一个参数是原点坐标，第二个参数是一个Grid2D变量，存储栅格化坐标和坐标上的概率值 Grid2D继承了GridInterface(/mapping/grid_interface.h)，
+  // Grid2D又被ProbabilityGrid继承，定义在/mapping/2d/probability_grid.h中, 基本数据都存储在Grid2D的成员变量grid_中。
   Submap2D(const Eigen::Vector2f& origin, std::unique_ptr<Grid2D> grid,
            ValueConversionTables* conversion_tables);
   explicit Submap2D(const proto::Submap2D& proto,
                     ValueConversionTables* conversion_tables);
 
+  // For implement the virtual functions in TrajectoryBuildInterface
   proto::Submap ToProto(bool include_grid_data) const override;
   void UpdateFromProto(const proto::Submap& proto) override;
 
@@ -65,6 +68,13 @@ class Submap2D : public Submap {
   std::unique_ptr<Grid2D> grid_;
   ValueConversionTables* conversion_tables_;
 };
+
+// 在cartographer中总是同时存在着两个Submap：Old Submap和New Submap. Old Submap是用来做matching, New submap则用来matching next. 每一帧RangeData数据都要同时插入到两个submap中。
+// 当插入Old Submap中的传感器帧数达到一定数量（在配置文件/src/cartographer/configuration_files/trajectory_builder_2d.lua中设置-submap/num_range_data）时，
+// old submap就不再改变，这时Old Submap开始进行Loop Closure，被加入到submap的list中，设置matching_submap_index增加1，然后被ActiveSubmap这个object所以往，
+// 而原先的new submap则变成新的Old Submap，同时通过AddSubmap函数重新初始化一个submap。
+
+//除了刚开始构建该对象的时候，只有一个子图(Submap2D)，其他时候它都维护着两个子图对象。 一个子图用于进行扫描匹配，称为旧图。另一个子图被称为新图用于插入扫描数据。当新图中插入一定数量的数据完成了初始化操作之后，它就会被当作旧图，用于扫描匹配
 
 // The first active submap will be created on the insertion of the first range
 // data. Except during this initialization when no or only one single submap
@@ -87,6 +97,7 @@ class ActiveSubmaps2D {
   std::vector<std::shared_ptr<const Submap2D>> InsertRangeData(
       const sensor::RangeData& range_data);
 
+  // LocalTrajectoryBuilder2D::ScanMatch uses this function
   std::vector<std::shared_ptr<const Submap2D>> submaps() const;
 
  private:

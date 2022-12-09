@@ -53,11 +53,14 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
   GlobalTrajectoryBuilder(const GlobalTrajectoryBuilder&) = delete;
   GlobalTrajectoryBuilder& operator=(const GlobalTrajectoryBuilder&) = delete;
 
+  // For each "timed_point_cloud_data", add a node with the "matching_result" to the pose_graph_ 
   void AddSensorData(
       const std::string& sensor_id,
       const sensor::TimedPointCloudData& timed_point_cloud_data) override {
     CHECK(local_trajectory_builder_)
         << "Cannot add TimedPointCloudData without a LocalTrajectoryBuilder.";
+        
+    // 1. 返回扫描匹配的结果，在该结果中同时记录了子图的更新信息 (local scan matching)
     std::unique_ptr<typename LocalTrajectoryBuilder::MatchingResult>
         matching_result = local_trajectory_builder_->AddRangeData(
             sensor_id, timed_point_cloud_data);
@@ -65,6 +68,8 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
       // The range data has not been fully accumulated yet.
       return;
     }
+
+    // 2. 前端工作完成之后，GlobalTrajectoryBuilder就要将前端的输出结果喂给后端进行闭环检测和全局优化
     kLocalSlamMatchingResults->Increment();
     std::unique_ptr<InsertionResult> insertion_result;
     if (matching_result->insertion_result != nullptr) {
@@ -79,6 +84,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
               matching_result->insertion_result->insertion_submaps.begin(),
               matching_result->insertion_result->insertion_submaps.end())});
     }
+    // 3. 处理完的结果调用回调函数进行处理
     if (local_slam_result_callback_) {
       local_slam_result_callback_(
           trajectory_id_, matching_result->time, matching_result->local_pose,
@@ -87,11 +93,14 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     }
   }
 
+  // 于IMU和里程计的数据都可以拿来通过积分运算进行局部的定位:
   void AddSensorData(const std::string& sensor_id,
                      const sensor::ImuData& imu_data) override {
+    // 1. 判定存在前端对象，将数据喂给前端对象进行局部定位
     if (local_trajectory_builder_) {
       local_trajectory_builder_->AddImuData(imu_data);
     }
+    // 2. 通过后端的位姿图将传感器的信息添加到全局地图中
     pose_graph_->AddImuData(trajectory_id_, imu_data);
   }
 
@@ -112,6 +121,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     pose_graph_->AddOdometryData(trajectory_id_, odometry_data);
   }
 
+  // 将类似于GPS这种具有全局定位能力的传感器输出的位姿称为固定坐标系位姿(fixed frame pose)。由于它们的测量结果是全局的信息，所以没有喂给前端用于局部定位
   void AddSensorData(
       const std::string& sensor_id,
       const sensor::FixedFramePoseData& fixed_frame_pose) override {
@@ -122,11 +132,13 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     pose_graph_->AddFixedFramePoseData(trajectory_id_, fixed_frame_pose);
   }
 
+  // 路标数据也可以认为是全局的定位信息，也直接喂给了后端
   void AddSensorData(const std::string& sensor_id,
                      const sensor::LandmarkData& landmark_data) override {
     pose_graph_->AddLandmarkData(trajectory_id_, landmark_data);
   }
 
+  // 直接给后端添加Local SLAM的结果数据的接口
   void AddLocalSlamResultData(std::unique_ptr<mapping::LocalSlamResultData>
                                   local_slam_result_data) override {
     CHECK(!local_trajectory_builder_) << "Can't add LocalSlamResultData with "
@@ -137,7 +149,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
  private:
   const int trajectory_id_;
   PoseGraph* const pose_graph_;
-  std::unique_ptr<LocalTrajectoryBuilder> local_trajectory_builder_;
+  std::unique_ptr<LocalTrajectoryBuilder> local_trajectory_builder_;  // Implement the object of LocalTrajectoryBuilder2D
   LocalSlamResultCallback local_slam_result_callback_;
   absl::optional<MotionFilter> pose_graph_odometry_motion_filter_;
 };

@@ -27,26 +27,32 @@
 namespace cartographer {
 namespace mapping {
 
+// ImuTracker的主要作用就是根据IMU的读数维护传感器当前的姿态、线加速度(经过重力校正的)、当前姿态、重力方向、角速度等量。
+// 这些量都是以ImuTracker刚建立时的那一时刻IMU本身的坐标系为基准坐标系。
 ImuTracker::ImuTracker(const double imu_gravity_time_constant,
                        const common::Time time)
     : imu_gravity_time_constant_(imu_gravity_time_constant),
       time_(time),
       last_linear_acceleration_time_(common::Time::min()),
       orientation_(Eigen::Quaterniond::Identity()),
-      gravity_vector_(Eigen::Vector3d::UnitZ()),
+      gravity_vector_(Eigen::Vector3d::UnitZ()),  //重力方向初始化为[0,0,1]
       imu_angular_velocity_(Eigen::Vector3d::Zero()) {}
 
 void ImuTracker::Advance(const common::Time time) {
   CHECK_LE(time_, time);
   const double delta_t = common::ToSeconds(time - time_);
+  // 角速度乘以时间，然后转化成RotationnQuaternion,这是这段时间的姿态变化量
   const Eigen::Quaterniond rotation =
       transform::AngleAxisVectorToRotationQuaternion(
           Eigen::Vector3d(imu_angular_velocity_ * delta_t));
+  // 以当前姿态orientation_为基准，再乘以姿态变化量。得到最新的姿态
   orientation_ = (orientation_ * rotation).normalized();
+  // 更新重力方向
   gravity_vector_ = rotation.conjugate() * gravity_vector_;
   time_ = time;
 }
 
+// 根据读数更新线加速度。这里的线加速度是经过重力校正的。
 void ImuTracker::AddImuLinearAccelerationObservation(
     const Eigen::Vector3d& imu_linear_acceleration) {
   // Update the 'gravity_vector_' with an exponential moving average using the

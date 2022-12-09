@@ -48,24 +48,29 @@ void ProbabilityGrid::SetProbability(const Eigen::Array2i& cell_index,
   mutable_known_cells_box()->extend(cell_index.matrix());
 }
 
-// Applies the 'odds' specified when calling ComputeLookupTableToApplyOdds()
-// to the probability of the cell at 'cell_index' if the cell has not already
-// been updated. Multiple updates of the same cell will be ignored until
-// FinishUpdate() is called. Returns true if the cell was updated.
+// 根据传感器返回的数据是Hit还是Miss这两种情况，我们会对所有的 [公式] 计算出两张表，hit_table和miss_table. 这样，假设在Grid2D这个栅格图中的其中一个pixel或cell，已预先有一个value值，然后现在又有一个传感器的测量结果，hit或miss，那么我们不需要计算，只需要以value为索引，通过查hit_table或miss_table中的值就可以得到更新后的value应该是多少。所以这个函数中第一个参数就是一个点的坐标，第二个参数就是一张table。
+// ApplyLookupTable是用来通过查表来更新栅格单元的占用概率的。 这也就是为什么Cartographer会费那么多精力把浮点数转换为uint16
+// Applies the 'odds' specified when calling ComputeLookupTableToApplyOdds() to the probability of the cell at 'cell_index',
+// if the cell has not already been updated. Multiple updates of the same cell will be ignored until FinishUpdate() is called. 
+// Returns true if the cell was updated.
 //
 // If this is the first call to ApplyOdds() for the specified cell, its value
 // will be set to probability corresponding to 'odds'.
 bool ProbabilityGrid::ApplyLookupTable(const Eigen::Array2i& cell_index,
                                        const std::vector<uint16>& table) {
   DCHECK_EQ(table.size(), kUpdateMarker);
-  const int flat_index = ToFlatIndex(cell_index);
-  uint16* cell = &(*mutable_correspondence_cost_cells())[flat_index];
+  const int flat_index = ToFlatIndex(cell_index); //把pixel坐标转化为一维索引值
+  // mutable_correspondence_cost_cells()是Grid2D的成员函数，返回存放概率值的一维向量, 根据cell坐标，返回该cell中原本的value值
+  uint16* cell = &(*mutable_correspondence_cost_cells())[flat_index]; //根据索引值求该cell的值
   if (*cell >= kUpdateMarker) {
     return false;
   }
+  // 已更新的信息都存储在update_indices_这个向量中，所以该cell被处理过后它的index要加入到这个向量中
   mutable_update_indices()->push_back(flat_index);
+  // 根据该pixel返回的值cell来查表，获取更新后应该是什么值。然后把这个值放入到cell原先的地址中。实际就是更新该值
   *cell = table[*cell];
   DCHECK_GE(*cell, kUpdateMarker);
+  // mutable_known_cells_box()是Grid2D的成员函数，返回存放已知概率值的一个子区域的盒子。现在就是把该cell放入已知概率值的盒子中
   mutable_known_cells_box()->extend(cell_index.matrix());
   return true;
 }
@@ -88,9 +93,11 @@ proto::Grid2D ProbabilityGrid::ToProto() const {
   return result;
 }
 
+// 在更新子图的过程中，并不能保证更新的数据能够完整覆盖整个子图的所有栅格。该函数就是以最小的矩形框出已经更新的栅格
 std::unique_ptr<Grid2D> ProbabilityGrid::ComputeCroppedGrid() const {
   Eigen::Array2i offset;
   CellLimits cell_limits;
+  // 接着获取子图的分辨率和最大的xy索引，并构建一个新的ProbabilityGrid对象cropped_grid。
   ComputeCroppedLimits(&offset, &cell_limits);
   const double resolution = limits().resolution();
   const Eigen::Vector2d max =

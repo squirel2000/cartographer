@@ -35,7 +35,7 @@ class PoseGraphInterface {
   // 2010 IEEE/RSJ International Conference on (pp. 22--29). IEEE, 2010.
   struct Constraint {
     struct Pose {
-      transform::Rigid3d zbar_ij;
+      transform::Rigid3d zbar_ij;//相对位姿
       double translation_weight;
       double rotation_weight;
     };
@@ -49,7 +49,7 @@ class PoseGraphInterface {
     // Differentiates between intra-submap (where node 'j' was inserted into
     // submap 'i') and inter-submap constraints (where node 'j' was not inserted
     // into submap 'i').
-    enum Tag { INTRA_SUBMAP, INTER_SUBMAP } tag;
+    enum Tag { INTRA_SUBMAP, INTER_SUBMAP } tag;  // 每一对儿node和submap，都分为两种情况：节点j有插入该submap中(INTRA_SUBMAP)和没有插入该submap中(INTER_SUBMAP)。
   };
 
   struct LandmarkNode {
@@ -83,6 +83,7 @@ class PoseGraphInterface {
 
   enum class TrajectoryState { ACTIVE, FINISHED, FROZEN, DELETED };
 
+  // 全局优化的回调函数的宏定义： 满足一定条件则会调用该回调函数进行优化。可以看到，该函数传入的参数是一系列的submap的id和Node的id。
   using GlobalSlamOptimizationCallback =
       std::function<void(const std::map<int /* trajectory_id */, SubmapId>&,
                          const std::map<int /* trajectory_id */, NodeId>&)>;

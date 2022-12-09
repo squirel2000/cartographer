@@ -101,7 +101,7 @@ proto::Submap Submap2D::ToProto(const bool include_grid_data) const {
   submap_2d->set_finished(insertion_finished());
   if (include_grid_data) {
     CHECK(grid_);
-    *submap_2d->mutable_grid() = grid_->ToProto();
+    *submap_2d->mutable_grid() = grid_->ToProto();  //调用grid_中的ToProto函数把概率图保存到proto中
   }
   return proto;
 }
@@ -134,11 +134,13 @@ void Submap2D::ToResponseProto(
   grid()->DrawToSubmapTexture(texture, local_pose());
 }
 
+// 在Submap里是通过InsertRangeData这个函数来插入一帧传感器数据的。在该函数里主要做了两件工作：一是根据传感器数据更新了地图，二是将该submap的num_rang_data_增长了
 void Submap2D::InsertRangeData(
     const sensor::RangeData& range_data,
     const RangeDataInserterInterface* range_data_inserter) {
   CHECK(grid_);
   CHECK(!insertion_finished());
+  //调用RangeDataInserterInterface来更新概率图。
   range_data_inserter->Insert(range_data, grid_.get());
   set_num_range_data(num_range_data() + 1);
 }
@@ -160,10 +162,12 @@ std::vector<std::shared_ptr<const Submap2D>> ActiveSubmaps2D::submaps() const {
 
 std::vector<std::shared_ptr<const Submap2D>> ActiveSubmaps2D::InsertRangeData(
     const sensor::RangeData& range_data) {
+  // Create the submap if empty
   if (submaps_.empty() ||
       submaps_.back()->num_range_data() == options_.num_range_data()) {
     AddSubmap(range_data.origin.head<2>());
   }
+  // Insert the submap
   for (auto& submap : submaps_) {
     submap->InsertRangeData(range_data, range_data_inserter_.get());
   }

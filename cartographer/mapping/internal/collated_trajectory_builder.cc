@@ -83,6 +83,7 @@ void CollatedTrajectoryBuilder::HandleCollatedSensorData(
     last_logging_time_ = std::chrono::steady_clock::now();
   }
 
+  //所以，每次有数据传入时，就调用这个回调函数。该回调函数最终调用LocalTrajectoryBuilder2D来处理
   data->AddToTrajectoryBuilder(wrapped_trajectory_builder_.get());
 }
 

@@ -72,10 +72,19 @@ PoseGraph2D::~PoseGraph2D() {
   CHECK(work_queue_ == nullptr);
 }
 
+// 该函数的主要工作就是指定一个trajectory_id的情况下，返回当前正处于活跃状态下的submap的id，也就是系统正在维护的insertion_submaps的两个submap的id。
+// insertion_submaps可能为空，也可能当前只有一个元素，也可能已经有两个元素了。
+
+// insertion_submaps为空的情况下直接返回异常，说明Local SLAM那部分有异常，开始建图后一个submap也没建立成功；
+// 如果insertion_submaps的size为1，说明系统刚开始建图，那么为insertion_submaps中的这个submap分配一个id （初始id为trajectory_id + 一个submap的index。由于这是第一个submap，所有这个submap的index为0），然后加入到OptimizationProblem里（OptimizationProblem的submap_data_存储了所有submap的绝对位姿，根据我们前面的理论分析也应该知道，OptimizationProblem需要每个submap和scan的绝对位姿来进行全局优化）去，这时只需要返回的submapId的向量里只包含一个submap的id，就是刚刚分配了id的这个submap的id；
+// 如果insertion_submaps的size为2，说明系统已经处于正常模式的建图中，Local Slam中已经在维护着两个submap了（一个Old, 一个New, 详见Cartographer源码阅读9—TrajectoryBuilder部分2-Submap后续中对ActiveSubmaps2D的解读）这时也得看submap_data中的最后一个submap是等于Insertion_submaps的第一个还是第二个:
+// 如果是等于insertion_submaps的第一个元素，说明insertion_submaps的第二个元素还没有分配了id，那么需要给该元素分配一个id——即让submap的index加1，然后把该元素加入到OptimizationProblem中，同时返回submap_data中的最后个id及让他的index加1后的id。
+// 如果是等于insertion_submaps的第二个元素，说明insertion_submaps的第二个元素也已经分配了id并加入到了OptimizationProblem的submap_data_中，所以，这时候我直接返回submap_data_中的最后一个元素及它之前一个元素的submap的id即可。
 std::vector<SubmapId> PoseGraph2D::InitializeGlobalSubmapPoses(
     const int trajectory_id, const common::Time time,
     const std::vector<std::shared_ptr<const Submap2D>>& insertion_submaps) {
   CHECK(!insertion_submaps.empty());
+  // 返回OptimizationProblem2D的成员变量： MapById<SubmapId, SubmapSpec2D> submap_data_; submap_data_中存的就是以SubmapId为key values值管理的所有Submap的全局位姿。
   const auto& submap_data = optimization_problem_->submap_data();
   if (insertion_submaps.size() == 1) {
     // If we don't already have an entry for the first submap, add one.
@@ -123,6 +132,8 @@ std::vector<SubmapId> PoseGraph2D::InitializeGlobalSubmapPoses(
   return {front_submap_id, last_submap_id};
 }
 
+// AddNode的主要工作是把一个TrajectoryNode的数据加入到PoseGraph维护的trajectory_nodes_这个容器中。并返回加入的节点的Node.
+// 在每次加入一个TrajectoryNode后，PoseGraph都要检查一下insertion_submaps的Old Submap是否被finished。如果已经被finished，那么就需要进行Loop Closure了。
 NodeId PoseGraph2D::AppendNode(
     std::shared_ptr<const TrajectoryNode::Data> constant_data,
     const int trajectory_id,
@@ -155,6 +166,8 @@ NodeId PoseGraph2D::AddNode(
     std::shared_ptr<const TrajectoryNode::Data> constant_data,
     const int trajectory_id,
     const std::vector<std::shared_ptr<const Submap2D>>& insertion_submaps) {
+  // 生成一个新的Pose，这个Pose是由trajectory相对于世界坐标系的Pose乘以节点数据中包含的该节点相对于该trajectory的LocalTrajectoryBuilder Pose
+  // 所以生成的optimized_pose就是该节点的绝对位姿
   const transform::Rigid3d optimized_pose(
       GetLocalToGlobalTransform(trajectory_id) * constant_data->local_pose);
 
@@ -309,6 +322,7 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
   }
 }
 
+// 主要任务就是计算新添加的这个节点与所有Submap之间的约束关系. 三个参数，一个是刚加入的节点ID；一个是Local Slam返回的insertion_submaps； 一个是是否有新finished的submap的判断标志
 WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
     const NodeId& node_id,
     std::vector<std::shared_ptr<const Submap2D>> insertion_submaps,

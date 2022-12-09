@@ -47,9 +47,12 @@ class LocalSlamResultData;
 // optimized pose estimates.
 class TrajectoryBuilderInterface {
  public:
+  // 根据NodeId的定义，我们可以把一条轨迹理解为由若干个节点串联起来的一个数据结构。 由于前端的核心只关系更新子图时的位姿和点云信息，不考虑在它与整个运动轨迹之间的关系，所以没有字段node_id。
   struct InsertionResult {
     NodeId node_id;
+    // constant_data记录了子图更新时在局部地图中的位姿，以及有传感器原始数据转换之后的点云信息。此外还记录了更新子图的时刻和重力方向
     std::shared_ptr<const TrajectoryNode::Data> constant_data;
+    // insertion_submaps则记录了被更新的子图对象。
     std::vector<std::shared_ptr<const Submap>> insertion_submaps;
   };
 

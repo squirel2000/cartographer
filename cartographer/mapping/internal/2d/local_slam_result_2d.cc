@@ -21,6 +21,7 @@
 namespace cartographer {
 namespace mapping {
 
+// 绕了一个大圈后，还是调用了TrajectoryBuilder和PoseGraph去做处理。
 void LocalSlamResult2D::AddToTrajectoryBuilder(
     TrajectoryBuilderInterface* const trajectory_builder) {
   trajectory_builder->AddLocalSlamResultData(

@@ -20,6 +20,10 @@
 #include "cartographer/mapping/internal/3d/local_trajectory_builder_options_3d.h"
 #include "cartographer/mapping/internal/local_slam_result_data.h"
 
+// TrajectoryBuilder是用来创建一个trajectory的。所以，该类首先要保存trajectory上的传感器数据，从一个连续的多帧传感器数据中会抽取若干关键帧, 一帧关键帧数据被称为trajectory上的一个节点(注意与ROS中的节点概念相区分)，
+// 一条trajectory由一串儿节点组成，所以TrajectoryBuilder要维护一个节点列表，同时，每一帧时的传感器数据相对于该Submap的局部坐标变换要已知；
+// 其次，该类要创建并维护一个栅格化的Submap列表，以便在MapBuilder中对所有的submap进行优化，形成一个总的Map。
+// 每个Submap相对于世界坐标系的位姿要估计出来，这样PoseGraph才能依据不同的submap各自的位姿变换矩阵把他们tie在一起并做全局优化。
 namespace cartographer {
 namespace mapping {
 namespace {

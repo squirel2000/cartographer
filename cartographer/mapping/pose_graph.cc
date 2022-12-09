@@ -148,6 +148,7 @@ proto::PoseGraph PoseGraph::ToProto(bool include_unfinished_submaps) const {
 
   std::set<mapping::SubmapId> unfinished_submaps;
   for (const auto& submap_id_data : GetAllSubmapData()) {
+    LOG(INFO) << "submap_id_data: " << submap_id_data.id;
     proto::Trajectory* trajectory_proto =
         trajectory(submap_id_data.id.trajectory_id);
     if (!include_unfinished_submaps &&

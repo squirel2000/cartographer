@@ -106,6 +106,7 @@ class MapBuilderInterface {
   virtual std::map<int /* trajectory id in proto */, int /* trajectory id */>
   LoadStateFromFile(const std::string& filename, bool load_frozen_state) = 0;
 
+  // 这三个接口分别用于获取当前轨迹跟踪器的数量、获取用于实现闭环检测的PoseGraph对象、获取所有的轨迹跟踪器的配置
   virtual int num_trajectory_builders() const = 0;
 
   virtual mapping::PoseGraphInterface* pose_graph() = 0;

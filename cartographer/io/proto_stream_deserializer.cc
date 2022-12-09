@@ -57,6 +57,15 @@ ProtoStreamDeserializer::ProtoStreamDeserializer(
          "`SerializationHeader`, but got field tag "
       << pose_graph_.data_case();
 
+LOG(INFO) << "pose_graph_: " << pose_graph_.pose_graph().constraint_size() << "; " << // 846
+    pose_graph_.pose_graph().trajectory_size() << "; " << // 1
+    pose_graph_.pose_graph().SerializeAsString();  
+
+std::string str;
+pose_graph_.SerializeToString(&str);
+std::cout << "1. SerializeToString(&str):\n" << str << std::endl;
+
+
   CHECK(ReadNextSerializedData(&all_trajectory_builder_options_))
       << "Serialized stream misses `AllTrajectoryBuilderOptions`.";
   CHECK(all_trajectory_builder_options_.has_all_trajectory_builder_options())

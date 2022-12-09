@@ -31,10 +31,11 @@ class ImuTracker {
  public:
   ImuTracker(double imu_gravity_time_constant, common::Time time);
 
+  // 把ImuTracker更新到指定时刻time，并把响应的orientation_,gravity_vector_和time_进行更新, 指定的时间time要比ImuTracker维护的时间time_晚，否则不需要更新。
   // Advances to the given 'time' and updates the orientation to reflect this.
   void Advance(common::Time time);
 
-  // Updates from an IMU reading (in the IMU frame).
+  // Updates from an IMU reading (in the IMU frame).// 根据传感器读数更新传感器的最新状态，得到经过重力校正的线加速度、角速度等。
   void AddImuLinearAccelerationObservation(
       const Eigen::Vector3d& imu_linear_acceleration);
   void AddImuAngularVelocityObservation(

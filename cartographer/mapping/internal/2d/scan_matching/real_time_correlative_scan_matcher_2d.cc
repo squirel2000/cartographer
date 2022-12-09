@@ -94,6 +94,7 @@ RealTimeCorrelativeScanMatcher2D::GenerateExhaustiveSearchCandidates(
          search_parameters.linear_bounds[scan_index].min_y + 1);
     num_candidates += num_linear_x_candidates * num_linear_y_candidates;
   }
+  
   std::vector<Candidate2D> candidates;
   candidates.reserve(num_candidates);
   for (int scan_index = 0; scan_index != search_parameters.num_scans;
@@ -120,6 +121,7 @@ double RealTimeCorrelativeScanMatcher2D::Match(
     transform::Rigid2d* pose_estimate) const {
   CHECK(pose_estimate != nullptr);
 
+  // Initialize pose_estimate, point_cloud w.r.t the initial_pose_esimate, and searching windows
   const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
   const sensor::PointCloud rotated_point_cloud = sensor::TransformPointCloud(
       point_cloud,
@@ -129,6 +131,7 @@ double RealTimeCorrelativeScanMatcher2D::Match(
       options_.linear_search_window(), options_.angular_search_window(),
       rotated_point_cloud, grid.limits().resolution());
 
+  // Search along the yaw (rotated_scans), and then (x, y) to decrease the searching process
   const std::vector<sensor::PointCloud> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
@@ -139,6 +142,7 @@ double RealTimeCorrelativeScanMatcher2D::Match(
       GenerateExhaustiveSearchCandidates(search_parameters);
   ScoreCandidates(grid, discrete_scans, search_parameters, &candidates);
 
+  // Take the poase w.r.t the origin of the submap with the highest socre
   const Candidate2D& best_candidate =
       *std::max_element(candidates.begin(), candidates.end());
   *pose_estimate = transform::Rigid2d(

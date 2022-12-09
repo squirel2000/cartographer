@@ -27,10 +27,13 @@ namespace mapping {
 
 constexpr float RangeDataCollator::kDefaultIntensityValue;
 
+/// @brief Check the id, size, and timestamp of the range data; Crop and merge
+/// the range data if num_accumulated_range_data > 1
 sensor::TimedPointCloudOriginData RangeDataCollator::AddRangeData(
     const std::string& sensor_id,
     sensor::TimedPointCloudData timed_point_cloud_data) {
   CHECK_NE(expected_sensor_ids_.count(sensor_id), 0);
+
   timed_point_cloud_data.intensities.resize(
       timed_point_cloud_data.ranges.size(), kDefaultIntensityValue);
   // TODO(gaschler): These two cases can probably be one.
