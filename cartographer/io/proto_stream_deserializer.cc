@@ -19,6 +19,8 @@
 #include "cartographer/io/internal/mapping_state_serialization.h"
 #include "cartographer/io/proto_stream.h"
 #include "glog/logging.h"
+#include "google/protobuf/io/zero_copy_stream_impl.h"  // Needed by TextFormat::print()
+#include "google/protobuf/text_format.h"  // Needed by TextFormat::PrintToString(mrlist, &str)
 
 namespace cartographer {
 namespace io {
@@ -39,6 +41,7 @@ bool IsVersionSupported(const mapping::proto::SerializationHeader& header) {
 
 mapping::proto::PoseGraph DeserializePoseGraphFromFile(
     const std::string& file_name) {
+LOG(INFO) << "DeserializePoseGraphFromFile(" << file_name << "): in proto_stream_deserializer.cc";
   ProtoStreamReader reader(file_name);
   ProtoStreamDeserializer deserializer(&reader);
   return deserializer.pose_graph();
@@ -56,15 +59,6 @@ ProtoStreamDeserializer::ProtoStreamDeserializer(
       << "Serialized stream order corrupt. Expecting `PoseGraph` after "
          "`SerializationHeader`, but got field tag "
       << pose_graph_.data_case();
-
-LOG(INFO) << "pose_graph_: " << pose_graph_.pose_graph().constraint_size() << "; " << // 846
-    pose_graph_.pose_graph().trajectory_size() << "; " << // 1
-    pose_graph_.pose_graph().SerializeAsString();  
-
-std::string str;
-pose_graph_.SerializeToString(&str);
-std::cout << "1. SerializeToString(&str):\n" << str << std::endl;
-
 
   CHECK(ReadNextSerializedData(&all_trajectory_builder_options_))
       << "Serialized stream misses `AllTrajectoryBuilderOptions`.";

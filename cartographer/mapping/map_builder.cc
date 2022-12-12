@@ -35,6 +35,8 @@
 #include "cartographer/sensor/internal/voxel_filter.h"
 #include "cartographer/transform/rigid_transform.h"
 #include "cartographer/transform/transform.h"
+#include "google/protobuf/io/zero_copy_stream_impl.h"  // Needed by TextFormat::print()
+#include "google/protobuf/text_format.h"  // Needed by TextFormat::PrintToString(mrlist, &str)
 
 // 一个MapBuilder的类对应了一次建图过程，在整个建图过程中，用于全局优化的PoseGraph的对象只有一个，即pose_graph_，而这个变量是在构造函数中就生成了。
 // 在AddTrajectorybuilder函数中只需要检查一下pose_graph_是否符合PoseGraph2D或PoseGraph3D的情况
@@ -244,6 +246,8 @@ bool MapBuilder::SerializeStateToFile(bool include_unfinished_submaps,
 
 std::map<int, int> MapBuilder::LoadState(
     io::ProtoStreamReaderInterface* const reader, bool load_frozen_state) {
+
+LOG(WARNING) << "************* LoadState() ****************";  // 1388, 378
   io::ProtoStreamDeserializer deserializer(reader);
 
   // Create a copy of the pose_graph_proto, such that we can re-write the
@@ -253,12 +257,34 @@ std::map<int, int> MapBuilder::LoadState(
       deserializer.all_trajectory_builder_options();
 
 LOG(WARNING) << "Size of trajectory: " << pose_graph_proto.trajectory_size() << "; constraints: " <<
-      pose_graph_proto.constraint_size() << "; nodes: " << pose_graph_proto.trajectory()[0].node_size() << "; submap: " <<
-      pose_graph_proto.trajectory()[0].submap_size() << "; landmark_pose: " << pose_graph_proto.landmark_poses_size() ;
+      pose_graph_proto.constraint_size() << "; nodes: " <<
+      pose_graph_proto.trajectory()[0].node_size() << "; submap: " <<
+      pose_graph_proto.trajectory()[0].submap_size() << "; landmark_pose: "
+      << pose_graph_proto.landmark_poses_size() ;
+{
 
-  // Recover each trajectory containing trajectory_proto, constraint_proto, submap_proto, node_proto, landmark
-  std::map<int, int> trajectory_remapping;
-  for (int i = 0; i < pose_graph_proto.trajectory_size(); ++i) {
+    // Write the new address book back to disk in text format
+    std::ofstream fw;
+    fw.open("/home/asus/Downloads/pose_graph.txt", std::ios::out | std::ios::binary);
+    google::protobuf::io::OstreamOutputStream* output = new google::protobuf::io::OstreamOutputStream(&fw);
+    google::protobuf::TextFormat::Print(pose_graph_proto, output);
+    delete output;
+    fw.close();
+
+    // std::string str;
+    // google::protobuf::TextFormat::PrintToString(pose_graph_proto, &str);
+    // LOG(INFO) << "PrintToString():\n" << str;
+
+    std::string str;
+    google::protobuf::TextFormat::PrintToString( pose_graph_proto.constraint(800), &str);
+    LOG(INFO) << "pose_graph_proto.constraint(800):\n" << str;
+}
+
+
+// Recover each trajectory containing trajectory_proto, constraint_proto,
+// submap_proto, node_proto, landmark
+std::map<int, int> trajectory_remapping;
+for (int i = 0; i < pose_graph_proto.trajectory_size(); ++i) {
     auto& trajectory_proto = *pose_graph_proto.mutable_trajectory(i);
     const auto& options_with_sensor_ids_proto =
         all_builder_options_proto.options_with_sensor_ids(i);
@@ -268,15 +294,20 @@ LOG(WARNING) << "Size of trajectory: " << pose_graph_proto.trajectory_size() << 
               .emplace(trajectory_proto.trajectory_id(), new_trajectory_id)
               .second)
         << "Duplicate trajectory ID: " << trajectory_proto.trajectory_id();
-    
-LOG(WARNING) << "trajectory_proto: " << trajectory_proto.trajectory_id() << "/" << new_trajectory_id << ": " << trajectory_proto.submap_size() << "; " <<
-    trajectory_remapping.at(0)<< "/" << trajectory_remapping.size() ;
-    
+
     trajectory_proto.set_trajectory_id(new_trajectory_id);
     if (load_frozen_state) {
       pose_graph_->FreezeTrajectory(new_trajectory_id);
     }
+
+LOG(WARNING) << "trajectory_proto: " << trajectory_proto.trajectory_id() << "/" << new_trajectory_id << ": " << trajectory_proto.submap_size() << "; " <<
+    trajectory_remapping.at(0)<< "/" << trajectory_remapping.size() ; // trajectory_proto: 0/0: 5; 0/1
+
   }
+
+std::ofstream fw;
+fw.open("/home/asus/Downloads/constraints.txt",          std::ios::out | std::ios::binary);
+google::protobuf::io::OstreamOutputStream* output = new      google::protobuf::io::OstreamOutputStream(&fw);
 
   // Apply the calculated remapping to constraints in the pose graph proto.
   for (auto& constraint_proto : *pose_graph_proto.mutable_constraint()) {
@@ -285,11 +316,11 @@ LOG(WARNING) << "trajectory_proto: " << trajectory_proto.trajectory_id() << "/" 
     constraint_proto.mutable_node_id()->set_trajectory_id(
         trajectory_remapping.at(constraint_proto.node_id().trajectory_id()));
 
-LOG(INFO) << "constraint_proto: " << pose_graph_proto.mutable_constraint()->size() << ": id = " << 
-    constraint_proto.submap_id().trajectory_id() << " / " << constraint_proto.node_id().trajectory_id() << "; xy(" <<
-    constraint_proto.relative_pose().translation().x() << ", " << constraint_proto.relative_pose().translation().y() << ")";
+    google::protobuf::TextFormat::Print(constraint_proto, output);
+    }
+delete output;
+fw.close();
 
-  }
 
   MapById<SubmapId, transform::Rigid3d> submap_poses;
   for (const proto::Trajectory& trajectory_proto :
@@ -300,25 +331,33 @@ LOG(INFO) << "constraint_proto: " << pose_graph_proto.mutable_constraint()->size
                                    submap_proto.submap_index()},
                           transform::ToRigid3(submap_proto.pose()));
 
-LOG(WARNING) << "submap_proto: " << trajectory_proto.trajectory_id() << " / " << submap_proto.submap_index() << ": xy(" <<
-    transform::ToRigid3(submap_proto.pose()).translation().x() << ", " << transform::ToRigid3(submap_proto.pose()).translation().y() << ")";
-
+std::string str;
+google::protobuf::TextFormat::PrintToString(submap_proto, &str);
+LOG(INFO) << "Trajectory: " << trajectory_proto.trajectory_id() << "; submap_proto: " << submap_proto.submap_index() << ":\n" << str;
     }
   }
 
-  MapById<NodeId, transform::Rigid3d> node_poses;
-  for (const proto::Trajectory& trajectory_proto :
-       pose_graph_proto.trajectory()) {
+
+// 378 nodes recorded in the trajectory ID="0"
+// std::ofstream fw;
+fw.open("/home/asus/Downloads/node.txt", std::ios::out | std::ios::binary);
+google::protobuf::io::OstreamOutputStream* output_node = new google::protobuf::io::OstreamOutputStream(&fw);
+
+MapById<NodeId, transform::Rigid3d> node_poses;
+for (const proto::Trajectory& trajectory_proto :
+     pose_graph_proto.trajectory()) {
     for (const proto::Trajectory::Node& node_proto : trajectory_proto.node()) {
       node_poses.Insert(
           NodeId{trajectory_proto.trajectory_id(), node_proto.node_index()},
           transform::ToRigid3(node_proto.pose()));
 
-LOG(INFO) << "node_poses: " << trajectory_proto.trajectory_id() << " / " << node_proto.node_index() << ": xy(" <<
-    node_proto.pose().translation().x() << ", " << node_proto.pose().translation().y() << ")";
+google::protobuf::TextFormat::Print(node_proto, output_node);
 
     }
   }
+delete output_node;
+fw.close();
+
 
   // Set global poses of landmarks.
   for (const auto& landmark : pose_graph_proto.landmark_poses()) {
@@ -361,8 +400,6 @@ LOG(INFO) << "node_poses: " << trajectory_proto.trajectory_id() << " / " << node
                                  proto.submap().submap_id().submap_index());
         pose_graph_->AddSubmapFromProto(submap_poses.at(submap_id),
                                         proto.submap());
-// All 5 submaps are added to the pose_graph_
-LOG(WARNING) << "AddSubmapFromProto(): " << proto.submap().submap_id().trajectory_id() << " / " << proto.submap().submap_id().submap_index();
         break;
       }
       case SerializedData::kNode: {
@@ -453,7 +490,9 @@ std::map<int, int> MapBuilder::LoadStateFromFile(
                     ".pbstream file.";
   }
   LOG(INFO) << "Loading saved state '" << state_filename << "'...";
+LOG(INFO) << "************* Before LoadStateFromFile() ****************";
   io::ProtoStreamReader stream(state_filename);
+LOG(INFO) << "************* LoadStateFromFile() ****************";
   return LoadState(&stream, load_frozen_state);
 }
 

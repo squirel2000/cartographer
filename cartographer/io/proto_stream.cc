@@ -62,9 +62,9 @@ void ProtoStreamWriter::WriteProto(const google::protobuf::Message& proto) {
   std::string uncompressed_data;
   proto.SerializeToString(&uncompressed_data);
 
-  // Parsing and Serialization (https://developers.google.com/protocol-buffers/docs/cpptutorial#standard-message-methods)
-  std::cout << "\n" << uncompressed_data << std::endl;
-  LOG(INFO) << uncompressed_data;
+// // Parsing and Serialization (https://developers.google.com/protocol-buffers/docs/cpptutorial#standard-message-methods)
+// std::cout << "\n" << uncompressed_data << std::endl;
+// LOG(INFO) << uncompressed_data;
 
   Write(uncompressed_data);
 }
