@@ -35,6 +35,16 @@ class Task {
   using WorkItem = std::function<void()>;
   enum State { NEW, DISPATCHED, DEPENDENCIES_COMPLETED, RUNNING, COMPLETED };
 
+  /**
+    NEW：新建任务, 还未schedule到线程池
+    DISPATCHED： 任务已经schedule 到线程池
+    DEPENDENCIES_COMPLETED： 任务依赖已经执行完成
+    RUNNING： 任务执行中
+    COMPLETED： 任务完成
+
+    对任一个任务的状态转换顺序为：
+    NEW->DISPATCHED->DEPENDENCIES_COMPLETED->RUNNING->COMPLETED
+  */
   Task() = default;
   ~Task();
 
@@ -61,10 +71,14 @@ class Task {
   // 'DEPENDENCIES_COMPLETED'.
   void OnDependenyCompleted();
 
+  // 需要执行的任务
   WorkItem work_item_ GUARDED_BY(mutex_);
   ThreadPoolInterface* thread_pool_to_notify_ GUARDED_BY(mutex_) = nullptr;
+  // 初始状态为NEW
   State state_ GUARDED_BY(mutex_) = NEW;
+  // 本任务依赖的任务的个数
   unsigned int uncompleted_dependencies_ GUARDED_BY(mutex_) = 0;
+  // 依赖本任务的其他任务
   std::set<Task*> dependent_tasks_ GUARDED_BY(mutex_);
 
   absl::Mutex mutex_;

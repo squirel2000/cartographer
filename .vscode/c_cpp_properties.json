@@ -1,0 +1,32 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/asus/cartographer_ws/install_isolated/include/**",
+        "/home/asus/catkin_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/asus/catkin_ws/src/turtlebot3/amcl_tb3/include/**",
+        "/home/asus/catkin_ws/src/DynamixelSDK/ros/dynamixel_sdk/include/**",
+        "/home/asus/catkin_ws/src/turtlebot3/gmapping/include/**",
+        "/home/asus/catkin_ws/src/turtlebot3/map_server/include/**",
+        "/home/asus/catkin_ws/src/turtlebot3/mobile_global_planner/include/**",
+        "/home/asus/catkin_ws/src/turtlebot3/mobile_local_planner/include/**",
+        "/home/asus/catkin_ws/src/giant_amr/msg_interpretation/include/**",
+        "/home/asus/catkin_ws/src/turtlebot3/openslam_gmapping_source/include/**",
+        "/home/asus/catkin_ws/src/turtlebot3/publish_transform/include/**",
+        "/home/asus/catkin_ws/src/turtlebot3/turtlebot3_slam/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

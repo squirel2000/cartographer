@@ -83,6 +83,7 @@ class Grid2D : public GridInterface {
   float GetMaxCorrespondenceCost() const { return max_correspondence_cost_; }
 
   // Returns true if the probability at the specified index is known.
+  // 指定的栅格是否被更新过
   bool IsKnown(const Eigen::Array2i& cell_index) const {
     return limits_.Contains(cell_index) &&
            correspondence_cost_cells_[ToFlatIndex(cell_index)] !=
@@ -112,6 +113,7 @@ class Grid2D : public GridInterface {
                   const std::vector<std::vector<uint16>*>& grids,
                   const std::vector<uint16>& grids_unknown_cell_values);
 
+  // 返回不可以修改的栅格地图数组的引用
   const std::vector<uint16>& correspondence_cost_cells() const {
     return correspondence_cost_cells_;
   }
@@ -120,6 +122,7 @@ class Grid2D : public GridInterface {
     return known_cells_box_;
   }
 
+  // 返回可以修改的栅格地图数组的指针
   std::vector<uint16>* mutable_correspondence_cost_cells() {
     return &correspondence_cost_cells_;
   }
@@ -128,21 +131,25 @@ class Grid2D : public GridInterface {
   Eigen::AlignedBox2i* mutable_known_cells_box() { return &known_cells_box_; }
 
   // Converts a 'cell_index' into an index into 'cells_'.
+  // 二维像素坐标转为一维索引坐标
   int ToFlatIndex(const Eigen::Array2i& cell_index) const {
     CHECK(limits_.Contains(cell_index)) << cell_index;
     return limits_.cell_limits().num_x_cells * cell_index.y() + cell_index.x();
   }
 
  private:
-  MapLimits limits_;
+  MapLimits limits_;  // 地图大小边界, 包括x和y最大值, 分辨率, x和y方向栅格数
+
+  // 地图栅格值, 存储的是free的概率转成uint16后的[0, 32767]范围内的值, 0代表未知
   // 记录各个栅格单元的空闲概率pfree，0表示对应栅格概率未知，[1, 32767]表示空闲概率，可以通过一对儿函数CorrespondenceCostToValue和ValueToCorrespondenceCost相互转换。 Cartographer通过查表的方式更新栅格单元的占用概率。
   std::vector<uint16> correspondence_cost_cells_;//存储概率值，这里的概率值是Free的概率值
   float min_correspondence_cost_; // pfree的最小值
   float max_correspondence_cost_;
-  std::vector<int> update_indices_;
+  std::vector<int> update_indices_;               // 记录已经更新过的索引
 
   // Bounding box of known cells to efficiently compute cropping limits.
-  Eigen::AlignedBox2i known_cells_box_;//存放Submap已经赋值过的一个子区域的盒子。
+  Eigen::AlignedBox2i known_cells_box_;           // 栅格的bounding box, 存的是像素坐标//存放Submap已经赋值过的一个子区域的盒子。
+  // 将[0, 1~32767] 映射到 [0.9, 0.1~0.9] 的转换表
   const std::vector<float>* value_to_correspondence_cost_table_;
 };
 

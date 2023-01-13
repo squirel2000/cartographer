@@ -65,7 +65,9 @@ class Submap2D : public Submap {
   void Finish();
 
  private:
-  std::unique_ptr<Grid2D> grid_;
+  std::unique_ptr<Grid2D> grid_; // 地图栅格数据
+
+  // 转换表, 第[0-32767]位置, 存的是[0.9, 0.1~0.9]的数据
   ValueConversionTables* conversion_tables_;
 };
 
@@ -86,6 +88,10 @@ class Submap2D : public Submap {
 // considered initialized: the old submap is no longer changed, the "new" submap
 // is now the "old" submap and is used for scan-to-map matching. Moreover, a
 // "new" submap gets created. The "old" submap is forgotten by this object.
+/**
+ * @brief 2个活跃的子图,旧的用于匹配,新的用于初始化,当新子图变成旧子图时候再进行匹配
+ * 只有初始化时才只有1个子图.
+ */
 class ActiveSubmaps2D {
  public:
   explicit ActiveSubmaps2D(const proto::SubmapsOptions2D& options);
@@ -109,6 +115,7 @@ class ActiveSubmaps2D {
   const proto::SubmapsOptions2D options_;
   std::vector<std::shared_ptr<Submap2D>> submaps_;
   std::unique_ptr<RangeDataInserterInterface> range_data_inserter_;
+  // 转换表, 第[0-32767]位置, 存的是[0.9, 0.1~0.9]的数据
   ValueConversionTables conversion_tables_;
 };
 

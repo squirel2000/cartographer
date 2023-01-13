@@ -29,12 +29,14 @@ FixedRatioSampler::FixedRatioSampler(const double ratio) : ratio_(ratio) {
 
 FixedRatioSampler::~FixedRatioSampler() {}
 
+// 在比例小于ratio_时返回true, ratio_设置为1时都返回true, 也就是说使用所有的数据
 bool FixedRatioSampler::Pulse() {
   ++num_pulses_;
   if (static_cast<double>(num_samples_) / num_pulses_ < ratio_) {
     ++num_samples_;
     return true;
   }
+  // 返回false时代表数据可以不用,可以跳过计算
   return false;
 }
 

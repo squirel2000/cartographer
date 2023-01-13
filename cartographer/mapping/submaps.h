@@ -34,6 +34,7 @@ namespace cartographer {
 namespace mapping {
 
 // Converts the given probability to log odds.
+// 对论文里的 odds(p)函数 又取了 log
 inline float Logit(float probability) {
   return std::log(probability / (1.f - probability));
 }
@@ -56,8 +57,16 @@ inline uint8 ProbabilityToLogOddsInteger(const float probability) {
 // track of how many range data were inserted into it, and sets
 // 'insertion_finished' when the map no longer changes and is ready for loop
 // closing.
+/**
+ * @brief 独立的子地图, 3个功能
+ * 
+ * 保存在local坐标系下的子图的坐标
+ * 记录插入到子图中雷达数据的个数
+ * 标记这个子图是否是完成状态
+ */
 class Submap {
  public:
+  // 构造函数, 将传入的local_submap_pose作为子图的坐标原点
   Submap(const transform::Rigid3d& local_submap_pose)
       : local_pose_(local_submap_pose) {}
   virtual ~Submap() {}
@@ -71,21 +80,24 @@ class Submap {
       proto::SubmapQuery::Response* response) const = 0;
 
   // Pose of this submap in the local map frame.
+  // 在local坐标系的子图的坐标
   transform::Rigid3d local_pose() const { return local_pose_; }
 
   // Number of RangeData inserted.
+  // 插入到子图中雷达数据的个数
   int num_range_data() const { return num_range_data_; }
   void set_num_range_data(const int num_range_data) {
     num_range_data_ = num_range_data;
   }
 
   bool insertion_finished() const { return insertion_finished_; }
+  // 将子图标记为完成状态
   void set_insertion_finished(bool insertion_finished) {
     insertion_finished_ = insertion_finished;
   }
 
  private:
-  const transform::Rigid3d local_pose_;
+  const transform::Rigid3d local_pose_; // 子图原点在local坐标系下的坐标
   int num_range_data_ = 0;
   bool insertion_finished_ = false;
 };

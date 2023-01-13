@@ -77,11 +77,22 @@ class PoseGraph2D : public PoseGraph {
   // node data was inserted into the 'insertion_submaps'. If
   // 'insertion_submaps.front().finished()' is 'true', data was inserted into
   // this submap for the last time.
+  // 添加一个带有“constant_data”的新节点. 它的“constant_data->local_pose”是
+  // 通过对“insertion_submaps.front()”的扫描匹配来确定的, 并且节点数据被插入到“insertion_submaps”中. 
+  // 如果 'insertion_submaps.front().finished()' 为 'true', 则数据最后一次插入到该子图中.
   NodeId AddNode(
       std::shared_ptr<const TrajectoryNode::Data> constant_data,
       int trajectory_id,
       const std::vector<std::shared_ptr<const Submap2D>>& insertion_submaps)
       LOCKS_EXCLUDED(mutex_);
+
+  // c++11: LOCKS_EXCLUDED 现在改名为EXCLUDES
+  // 它声明调用者不能拥有给定的能力. 该注解用于防止死锁. 
+  // 许多互斥体实现是不可重入的, 因此如果函数第二次获取互斥体, 就会发生死锁.
+
+  // c++11: EXCLUSIVE_LOCKS_REQUIRED 现在改名为REQUIRES
+  // 它声明调用线程必须具有对给定功能(线程锁)的独占访问权限. 可以指定不止一种能力(多个线程锁)
+  // 这些能力必须在进入函数时保持, 并且在退出时仍然必须保持.
 
   // 对于IMU和里程计数据而言，他们的局部信息是比较可靠的，所以在每次有新的观察结果时立刻交给OptimizationProblem进行处理。但对于Landmark的数据而言，cartographer认为Landmark的绝对位姿是已知的，而机器人在行进过程中可能会多次观察landmark，因此，landmark并不是有观测后就立刻处理，而是在进行Loop Closure之前才调用，在调用时可能观察到多次，遍历这些观测数据，并把他们放到landmark_nodes_这个容器中，然后在Loop Closure时一起优化
   void AddImuData(int trajectory_id, const sensor::ImuData& imu_data) override
@@ -244,11 +255,13 @@ class PoseGraph2D : public PoseGraph {
 
   const proto::PoseGraphOptions options_;
   GlobalSlamOptimizationCallback global_slam_optimization_callback_;
+  // 只有这两个线程互斥锁
   mutable absl::Mutex mutex_;
   absl::Mutex work_queue_mutex_;
 
   // If it exists, further work items must be added to this queue, and will be
   // considered later.
+  // 指向 双端队列 的指针
   std::unique_ptr<WorkQueue> work_queue_ GUARDED_BY(work_queue_mutex_);
 
   // We globally localize a fraction of the nodes from each trajectory.

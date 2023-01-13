@@ -25,6 +25,7 @@ namespace sensor {
 PointCloud::PointCloud() {}
 PointCloud::PointCloud(std::vector<PointCloud::PointType> points)
     : points_(std::move(points)) {}
+// 构造时先拷贝, 再进行移动
 PointCloud::PointCloud(std::vector<PointType> points,
                        std::vector<float> intensities)
     : points_(std::move(points)), intensities_(std::move(intensities)) {
@@ -36,9 +37,11 @@ PointCloud::PointCloud(std::vector<PointType> points,
 size_t PointCloud::size() const { return points_.size(); }
 bool PointCloud::empty() const { return points_.empty(); }
 
+// 返回vector的引用
 const std::vector<PointCloud::PointType>& PointCloud::points() const {
   return points_;
 }
+// 返回vector的引用
 const std::vector<float>& PointCloud::intensities() const {
   return intensities_;
 }
@@ -53,6 +56,13 @@ void PointCloud::push_back(PointCloud::PointType value) {
   points_.push_back(std::move(value));
 }
 
+/**
+ * @brief 对输入的点云做坐标变换
+ * 
+ * @param[in] point_cloud 输入的点云
+ * @param[in] transform 坐标变换
+ * @return PointCloud 变换之后的点云
+ */
 PointCloud TransformPointCloud(const PointCloud& point_cloud,
                                const transform::Rigid3f& transform) {
   std::vector<RangefinderPoint> points;
@@ -63,6 +73,13 @@ PointCloud TransformPointCloud(const PointCloud& point_cloud,
   return PointCloud(points, point_cloud.intensities());
 }
 
+/**
+ * @brief 返回坐标变换后的点云
+ * 
+ * @param[in] point_cloud 点云数据
+ * @param[in] transform 旋转变换矩阵
+ * @return TimedPointCloud 返回坐标变换后的点云
+ */
 TimedPointCloud TransformTimedPointCloud(const TimedPointCloud& point_cloud,
                                          const transform::Rigid3f& transform) {
   TimedPointCloud result;
@@ -73,8 +90,17 @@ TimedPointCloud TransformTimedPointCloud(const TimedPointCloud& point_cloud,
   return result;
 }
 
+/**
+ * @brief 对输入的点云进行滤波, 保留数据点的z坐标处于min_z与max_z之间的点
+ * 
+ * @param[in] point_cloud 输入的点云
+ * @param[in] min_z 最小的z
+ * @param[in] max_z 最大的z
+ * @return PointCloud 裁剪之后的点云 拷贝
+ */
 PointCloud CropPointCloud(const PointCloud& point_cloud, const float min_z,
                           const float max_z) {
+  // 将lamda表达式传入copy_if, 当lamda表达式返回true时才进行复制, 
   return point_cloud.copy_if([min_z, max_z](const RangefinderPoint& point) {
     return min_z <= point.position.z() && point.position.z() <= max_z;
   });

@@ -28,6 +28,7 @@ void LocalSlamResult2D::AddToTrajectoryBuilder(
       absl::make_unique<LocalSlamResult2D>(*this));
 }
 
+// 将local_slam_result_data_的各个数据作为节点加入到位姿图中
 void LocalSlamResult2D::AddToPoseGraph(int trajectory_id,
                                        PoseGraph* pose_graph) const {
   DCHECK(dynamic_cast<PoseGraph2D*>(pose_graph));

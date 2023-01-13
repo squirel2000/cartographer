@@ -31,6 +31,7 @@ namespace mapping {
 
 // MapBuilder是对MapBuilderInterface的继承和实现，MapBuilder中的方法都已经在MapBuilderInterface中定义
 // Wires up the complete SLAM stack with TrajectoryBuilders (for local submaps) and a PoseGraph for loop closure.
+// 包含前端(TrajectoryBuilders,scan to submap) 与 后端(用于查找回环的PoseGraph) 的完整的SLAM
 class MapBuilder : public MapBuilderInterface {
  public:
   explicit MapBuilder(const proto::MapBuilderOptions &options);
@@ -74,6 +75,7 @@ class MapBuilder : public MapBuilderInterface {
     return trajectory_builders_.size();
   }
 
+  // 返回指向CollatedTrajectoryBuilder的指针
   mapping::TrajectoryBuilderInterface *GetTrajectoryBuilder(
       int trajectory_id) const override {
     return trajectory_builders_.at(trajectory_id).get();

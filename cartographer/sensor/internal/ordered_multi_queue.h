@@ -32,9 +32,11 @@ namespace cartographer {
 namespace sensor {
 
 struct QueueKey {
-  int trajectory_id;
-  std::string sensor_id;
+  int trajectory_id;      // 轨迹id
+  std::string sensor_id;  // topic名字
 
+  // 重载小于运算符, map根据这个规则对QueueKey进行排序
+  // 以tuple规则比较2者, tuple定义了<运算符, 逐个元素进行比较
   bool operator<(const QueueKey& other) const {
     return std::forward_as_tuple(trajectory_id, sensor_id) <
            std::forward_as_tuple(other.trajectory_id, other.sensor_id);
@@ -44,13 +46,18 @@ struct QueueKey {
 // Maintains multiple queues of sorted sensor data and dispatches it in merge
 // sorted order. It will wait to see at least one value for each unfinished
 // queue before dispatching the next time ordered value across all queues.
-//
-// This class is thread-compatible.
+// 维护排序后的传感器数据的多个队列, 并按合并排序的顺序进行调度
+// 它将等待为每个未完成的队列查看至少一个值, 然后再在所有队列中分派下一个按时间排序的值.
+
+// This class is thread-compatible. 此类是线程兼容的
 class OrderedMultiQueue {
  public:
+  // note: OrderedMultiQueue::Callback 1个参数
   using Callback = std::function<void(std::unique_ptr<Data>)>;
 
   OrderedMultiQueue();
+  // c++11: 移动构造函数, 只在使用的时候编译器才会自动生成
+  // 这里是显示指定让编译器生成一个默认的移动构造函数
   OrderedMultiQueue(OrderedMultiQueue&& queue) = default;
 
   ~OrderedMultiQueue();
@@ -78,9 +85,9 @@ class OrderedMultiQueue {
 
  private:
   struct Queue {
-    common::BlockingQueue<std::unique_ptr<Data>> queue;
-    Callback callback;
-    bool finished = false;
+    common::BlockingQueue<std::unique_ptr<Data>> queue;   // 存储数据的队列
+    Callback callback;                                    // 本数据队列对应的回调函数
+    bool finished = false;                                // 这个queue是否finished
   };
 
   void Dispatch();
@@ -89,9 +96,9 @@ class OrderedMultiQueue {
 
   // Used to verify that values are dispatched in sorted order.
   common::Time last_dispatched_time_ = common::Time::min();
-
+  // 轨迹id及对应创建轨迹时间
   std::map<int, common::Time> common_start_time_per_trajectory_;
-  std::map<QueueKey, Queue> queues_;
+  std::map<QueueKey, Queue> queues_;   // 多个数据队列
   QueueKey blocker_;
 };
 

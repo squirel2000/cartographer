@@ -38,6 +38,15 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
  public:
   // Passing a 'nullptr' for 'local_trajectory_builder' is acceptable, but no
   // 'TimedPointCloudData' may be added in that case.
+  /**
+   * @brief 完整的slam, 连接起了前端与后端
+   * 
+   * @param[in] local_trajectory_builder 2d or 3d local slam 前端
+   * @param[in] trajectory_id 轨迹id
+   * @param[in] pose_graph 2d or 3d pose_graph 后端
+   * @param[in] local_slam_result_callback 前端的回调函数
+   * @param[in] pose_graph_odometry_motion_filter 里程计的滤波器
+   */
   GlobalTrajectoryBuilder(
       std::unique_ptr<LocalTrajectoryBuilder> local_trajectory_builder,
       const int trajectory_id, PoseGraph* const pose_graph,
@@ -50,9 +59,16 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
         pose_graph_odometry_motion_filter_(pose_graph_odometry_motion_filter) {}
   ~GlobalTrajectoryBuilder() override {}
 
+  // 禁用拷贝构造函数与赋值运算符
   GlobalTrajectoryBuilder(const GlobalTrajectoryBuilder&) = delete;
   GlobalTrajectoryBuilder& operator=(const GlobalTrajectoryBuilder&) = delete;
 
+  /**
+   * @brief 点云数据的处理, 先进行扫描匹配, 然后将扫描匹配的结果当做节点插入到后端的位姿图中
+   * 
+   * @param[in] sensor_id topic名字
+   * @param[in] timed_point_cloud_data 点云数据
+   */
   // For each "timed_point_cloud_data", add a node with the "matching_result" to the pose_graph_ 
   void AddSensorData(
       const std::string& sensor_id,
@@ -69,17 +85,24 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
       return;
     }
 
+    // matching_result->insertion_result 的类型是 LocalTrajectoryBuilder2D::InsertionResult
+    // 如果雷达成功插入到地图中
     // 2. 前端工作完成之后，GlobalTrajectoryBuilder就要将前端的输出结果喂给后端进行闭环检测和全局优化
     kLocalSlamMatchingResults->Increment();
     std::unique_ptr<InsertionResult> insertion_result;
+    // matching_result->insertion_result 的类型是 LocalTrajectoryBuilder2D::InsertionResult
+    // 如果雷达成功插入到地图中
     if (matching_result->insertion_result != nullptr) {
       kLocalSlamInsertionResults->Increment();
+      // 将匹配后的结果 当做节点 加入到位姿图中
       auto node_id = pose_graph_->AddNode(
           matching_result->insertion_result->constant_data, trajectory_id_,
           matching_result->insertion_result->insertion_submaps);
       CHECK_EQ(node_id.trajectory_id, trajectory_id_);
+      // 这里的InsertionResult的类型是 TrajectoryBuilderInterface::InsertionResult
       insertion_result = absl::make_unique<InsertionResult>(InsertionResult{
-          node_id, matching_result->insertion_result->constant_data,
+          node_id, 
+          matching_result->insertion_result->constant_data,
           std::vector<std::shared_ptr<const Submap>>(
               matching_result->insertion_result->insertion_submaps.begin(),
               matching_result->insertion_result->insertion_submaps.end())});
@@ -93,6 +116,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     }
   }
 
+  // imu数据的处理, 数据走向有两个,一个是进入前端local_trajectory_builder_,一个是进入后端pose_graph_
   // 于IMU和里程计的数据都可以拿来通过积分运算进行局部的定位:
   void AddSensorData(const std::string& sensor_id,
                      const sensor::ImuData& imu_data) override {
@@ -104,6 +128,8 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     pose_graph_->AddImuData(trajectory_id_, imu_data);
   }
 
+  // 里程计数据的处理, 数据走向有两个,一个是进入前端local_trajectory_builder_, 一个是进入后端pose_graph_
+  // 加入到后端之前, 先做一个距离的计算, 只有时间,移动距离,角度 变换量大于阈值才加入到后端中
   void AddSensorData(const std::string& sensor_id,
                      const sensor::OdometryData& odometry_data) override {
     CHECK(odometry_data.pose.IsValid()) << odometry_data.pose;
@@ -121,7 +147,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     pose_graph_->AddOdometryData(trajectory_id_, odometry_data);
   }
 
-  // 将类似于GPS这种具有全局定位能力的传感器输出的位姿称为固定坐标系位姿(fixed frame pose)。由于它们的测量结果是全局的信息，所以没有喂给前端用于局部定位
+  // gps数据只在后端中使用; 将类似于GPS这种具有全局定位能力的传感器输出的位姿称为固定坐标系位姿(fixed frame pose)。由于它们的测量结果是全局的信息，所以没有喂给前端用于局部定位
   void AddSensorData(
       const std::string& sensor_id,
       const sensor::FixedFramePoseData& fixed_frame_pose) override {
@@ -132,13 +158,13 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
     pose_graph_->AddFixedFramePoseData(trajectory_id_, fixed_frame_pose);
   }
 
-  // 路标数据也可以认为是全局的定位信息，也直接喂给了后端
+  // Landmark的数据只在后端中使用; 路标数据也可以认为是全局的定位信息，也直接喂给了后端
   void AddSensorData(const std::string& sensor_id,
                      const sensor::LandmarkData& landmark_data) override {
     pose_graph_->AddLandmarkData(trajectory_id_, landmark_data);
   }
 
-  // 直接给后端添加Local SLAM的结果数据的接口
+  // 将local slam的结果加入到后端中, 作为位姿图的一个节点; 直接给后端添加Local SLAM的结果数据的接口
   void AddLocalSlamResultData(std::unique_ptr<mapping::LocalSlamResultData>
                                   local_slam_result_data) override {
     CHECK(!local_trajectory_builder_) << "Can't add LocalSlamResultData with "
@@ -148,7 +174,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
 
  private:
   const int trajectory_id_;
-  PoseGraph* const pose_graph_;
+  PoseGraph* const pose_graph_;     // 模板参数, 可以指向PoseGraph2D也可以指向PoseGraph3D
   std::unique_ptr<LocalTrajectoryBuilder> local_trajectory_builder_;  // Implement the object of LocalTrajectoryBuilder2D
   LocalSlamResultCallback local_slam_result_callback_;
   absl::optional<MotionFilter> pose_graph_odometry_motion_filter_;
@@ -156,6 +182,9 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
 
 }  // namespace
 
+// 类模板不支持实参推演, 所以在类外指定模板参数的具体类型, 再进行类的实例化
+
+// 2d的完整的slam
 std::unique_ptr<TrajectoryBuilderInterface> CreateGlobalTrajectoryBuilder2D(
     std::unique_ptr<LocalTrajectoryBuilder2D> local_trajectory_builder,
     const int trajectory_id, mapping::PoseGraph2D* const pose_graph,
@@ -168,6 +197,7 @@ std::unique_ptr<TrajectoryBuilderInterface> CreateGlobalTrajectoryBuilder2D(
       local_slam_result_callback, pose_graph_odometry_motion_filter);
 }
 
+// 3d的完整的slam
 std::unique_ptr<TrajectoryBuilderInterface> CreateGlobalTrajectoryBuilder3D(
     std::unique_ptr<LocalTrajectoryBuilder3D> local_trajectory_builder,
     const int trajectory_id, mapping::PoseGraph3D* const pose_graph,

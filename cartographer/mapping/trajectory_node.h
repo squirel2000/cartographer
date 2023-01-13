@@ -30,6 +30,7 @@
 namespace cartographer {
 namespace mapping {
 
+// 包含节点的在global map下的坐标, 在local map 下的坐标与时间
 struct TrajectoryNodePose {
   struct ConstantPoseData {
     common::Time time;
@@ -41,7 +42,10 @@ struct TrajectoryNodePose {
   absl::optional<ConstantPoseData> constant_pose_data;
 };
 
+// tag: TrajectoryNode
+// 节点在global坐标系下的位姿, 与前端的结果
 struct TrajectoryNode {
+  // 前端匹配所用的数据与计算出的local坐标系下的位姿
   struct Data {
     common::Time time;
 
@@ -56,7 +60,7 @@ struct TrajectoryNode {
     // Used for loop closure in 3D.
     sensor::PointCloud high_resolution_point_cloud;
     sensor::PointCloud low_resolution_point_cloud;
-    Eigen::VectorXf rotational_scan_matcher_histogram;  //旋转匹配直方图；VectorXf是一个长度可变的向量。
+    Eigen::VectorXf rotational_scan_matcher_histogram;
 
     // The node pose in the local SLAM frame.
     transform::Rigid3d local_pose;  //这个local_pose可以看做是没有经过全局优化的该submap相对于世界坐标系的位姿。
@@ -66,10 +70,10 @@ struct TrajectoryNode {
 
   // This must be a shared_ptr. If the data is used for visualization while the
   // node is being trimmed, it must survive until all use finishes.
-  std::shared_ptr<const Data> constant_data;
+  std::shared_ptr<const Data> constant_data; // 不会被后端优化修改的数据, 所以是constant
 
   // The node pose in the global SLAM frame.
-  transform::Rigid3d global_pose;  // TODO: Publish this pose as the current pose for global path planning?
+  transform::Rigid3d global_pose;  // 后端优化后, global_pose会发生改变; TODO: Publish this pose as the current pose for global path planning?
 };
 
 proto::TrajectoryNodeData ToProto(const TrajectoryNode::Data& constant_data);

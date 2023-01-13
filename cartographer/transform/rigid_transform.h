@@ -57,6 +57,12 @@ class Rigid2 {
 
   static Rigid2<FloatType> Identity() { return Rigid2<FloatType>(); }
 
+  /* c++11: .template 调用模板类的模板成员函数前必须加template关键字的情况
+    当要使用模板类中的模板函数时, 如果同时满足下面两个条件:
+      1.如果模板类的模板参数是不确定类型时（int和非模板类等是确定类型）
+      2.显式提供模板函数的模板参数, 不管模板参数是确定类型还是不确定类型
+    则，需要在模板函数前加template关键字
+   */
   template <typename OtherType>
   Rigid2<OtherType> cast() const {
     return Rigid2<OtherType>(translation_.template cast<OtherType>(),
@@ -71,6 +77,9 @@ class Rigid2 {
     return common::NormalizeAngleDifference(rotation().angle());
   }
 
+  // T = [R t] T^-1 = [R^-1  -R^-1 * t]
+  //     [0 1]        [0         1    ] 
+  // R是旋转矩阵, 特殊正交群, 所以R^-1 = R^T
   Rigid2 inverse() const {
     const Rotation2D rotation = rotation_.inverse();
     const Vector translation = -(rotation * translation_);
@@ -87,6 +96,10 @@ class Rigid2 {
   Rotation2D rotation_;
 };
 
+// lhs是全局坐标系下的位姿, rhs是全局坐标系下的坐姿变动量
+// lhs.rotation() * rhs.translation() + lhs.translation() 的意思是
+// 将 rhs 转换成 lhs自身坐标系下的位姿变动量 再与lhs的坐标相加
+// 得到 lhs 在全局坐标系下的新的位姿
 template <typename FloatType>
 Rigid2<FloatType> operator*(const Rigid2<FloatType>& lhs,
                             const Rigid2<FloatType>& rhs) {
@@ -156,6 +169,9 @@ class Rigid3 {
   const Vector& translation() const { return translation_; }
   const Quaternion& rotation() const { return rotation_; }
 
+  // T = [R t] T^-1 = [R^-1  -R^-1 * t]
+  //     [0 1]        [0         1    ] 
+  // R是旋转矩阵, 特殊正交群, 所以R^-1 = R^T
   Rigid3 inverse() const {
     const Quaternion rotation = rotation_.conjugate();
     const Vector translation = -(rotation * translation_);
@@ -180,6 +196,10 @@ class Rigid3 {
   Quaternion rotation_;
 };
 
+// lhs是全局坐标系下的位姿, rhs是全局坐标系下的坐姿变动量
+// lhs.rotation() * rhs.translation() + lhs.translation() 的意思是
+// 将 rhs 转换成 lhs自身坐标系下的位姿变动量 再与lhs的坐标相加
+// 得到 lhs 在全局坐标系下的新的位姿
 template <typename FloatType>
 Rigid3<FloatType> operator*(const Rigid3<FloatType>& lhs,
                             const Rigid3<FloatType>& rhs) {

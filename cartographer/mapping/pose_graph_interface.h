@@ -33,6 +33,7 @@ class PoseGraphInterface {
   // A "constraint" as in the paper by Konolige, Kurt, et al. "Efficient sparse
   // pose adjustment for 2d mapping." Intelligent Robots and Systems (IROS),
   // 2010 IEEE/RSJ International Conference on (pp. 22--29). IEEE, 2010.
+  // 包含了子图的id, 节点的id, 节点j相对于子图i的坐标变换, 以及节点是在子图内还是子图外的标志
   struct Constraint {
     struct Pose {
       transform::Rigid3d zbar_ij;//相对位姿
@@ -53,6 +54,7 @@ class PoseGraphInterface {
   };
 
   struct LandmarkNode {
+    // landmark数据是相对于tracking_frame的相对坐标变换
     struct LandmarkObservation {
       int trajectory_id;
       common::Time time;
@@ -60,7 +62,9 @@ class PoseGraphInterface {
       double translation_weight;
       double rotation_weight;
     };
+    // 同一时刻可能会观测到多个landmark数据
     std::vector<LandmarkObservation> landmark_observations;
+    // 这帧数据对应的tracking_frame在global坐标系下的位姿
     absl::optional<transform::Rigid3d> global_landmark_pose;
     bool frozen = false;
   };
@@ -75,6 +79,7 @@ class PoseGraphInterface {
     transform::Rigid3d pose;
   };
 
+  // tag: TrajectoryData
   struct TrajectoryData {
     double gravity_constant = 9.8;
     std::array<double, 4> imu_calibration{{1., 0., 0., 0.}};

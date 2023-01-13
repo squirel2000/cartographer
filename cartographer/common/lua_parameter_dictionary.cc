@@ -62,6 +62,7 @@ void QuoteStringOnStack(lua_State* L) {
 
 // Sets the given 'dictionary' as the value of the "this" key in Lua's registry
 // table.
+// 将给定的“dictionary”设置为Lua注册表表中“this”键的值
 void SetDictionaryInRegistry(lua_State* L, LuaParameterDictionary* dictionary) {
   lua_pushstring(L, "this");
   lua_pushlightuserdata(L, dictionary);
@@ -145,6 +146,7 @@ void GetArrayValues(lua_State* L, const std::function<void()>& pop_value) {
 
 }  // namespace
 
+// 更多Lua的学习可以参考 https://www.cnblogs.com/chevin/p/5884657.html
 std::unique_ptr<LuaParameterDictionary>
 LuaParameterDictionary::NonReferenceCounted(
     const std::string& code, std::unique_ptr<FileResolver> file_resolver) {
@@ -152,11 +154,25 @@ LuaParameterDictionary::NonReferenceCounted(
       code, ReferenceCount::NO, std::move(file_resolver)));
 }
 
+/**
+ * @brief Construct a new Lua Parameter Dictionary:: Lua Parameter Dictionary object
+ * 
+ * @param[in] code 配置文件内容
+ * @param[in] file_resolver FileResolver类
+ */
 LuaParameterDictionary::LuaParameterDictionary(
     const std::string& code, std::unique_ptr<FileResolver> file_resolver)
     : LuaParameterDictionary(code, ReferenceCount::YES,
                              std::move(file_resolver)) {}
 
+/**
+ * @brief Construct a new Lua Parameter Dictionary:: Lua Parameter Dictionary object
+ *        根据给定的字符串, 生成一个lua字典
+ * 
+ * @param[in] code 配置文件内容
+ * @param[in] reference_count 
+ * @param[in] file_resolver FileResolver类
+ */
 LuaParameterDictionary::LuaParameterDictionary(
     const std::string& code, ReferenceCount reference_count,
     std::unique_ptr<FileResolver> file_resolver)
@@ -170,9 +186,11 @@ LuaParameterDictionary::LuaParameterDictionary(
   luaL_openlibs(L_);
 
   lua_register(L_, "choose", LuaChoose);
+  // 将LuaInclude注册为Lua的全局函数变量,使得Lua可以调用C函数
   lua_register(L_, "include", LuaInclude);
   lua_register(L_, "read", LuaRead);
 
+  // luaL_loadstring()函数 将一个字符串code加载为 Lua 代码块
   CheckForLuaErrors(L_, luaL_loadstring(L_, code.c_str()));
   CheckForLuaErrors(L_, lua_pcall(L_, 0, 1, 0));
   CheckTableIsAtTopOfStack(L_);
@@ -224,6 +242,7 @@ bool LuaParameterDictionary::HasKey(const std::string& key) const {
   return HasKeyOfType(L_, key);
 }
 
+// 获取key对应的string值
 std::string LuaParameterDictionary::GetString(const std::string& key) {
   CheckHasKeyAndReference(key);
   GetValueFromLuaTable(L_, key);
@@ -241,6 +260,7 @@ std::string LuaParameterDictionary::PopString(Quoted quoted) const {
   return value;
 }
 
+// 获取key对应的double值
 double LuaParameterDictionary::GetDouble(const std::string& key) {
   CheckHasKeyAndReference(key);
   GetValueFromLuaTable(L_, key);
@@ -254,6 +274,7 @@ double LuaParameterDictionary::PopDouble() const {
   return value;
 }
 
+// 获取key对应的int值
 int LuaParameterDictionary::GetInt(const std::string& key) {
   CheckHasKeyAndReference(key);
   GetValueFromLuaTable(L_, key);
@@ -267,6 +288,7 @@ int LuaParameterDictionary::PopInt() const {
   return value;
 }
 
+// 获取key对应的bool值
 bool LuaParameterDictionary::GetBool(const std::string& key) {
   CheckHasKeyAndReference(key);
   GetValueFromLuaTable(L_, key);
@@ -423,6 +445,7 @@ int LuaParameterDictionary::GetNonNegativeInt(const std::string& key) {
 
 // Lua function to run a script in the current Lua context. Takes the filename
 // as its only argument.
+// 读取.lua文件中的所有 include 的文件
 int LuaParameterDictionary::LuaInclude(lua_State* L) {
   CHECK_EQ(lua_gettop(L), 1);
   CHECK(lua_isstring(L, -1)) << "include takes a filename.";
@@ -431,6 +454,7 @@ int LuaParameterDictionary::LuaInclude(lua_State* L) {
   const std::string basename = lua_tostring(L, -1);
   const std::string filename =
       parameter_dictionary->file_resolver_->GetFullPathOrDie(basename);
+  // 防止双重包含
   if (std::find(parameter_dictionary->included_files_.begin(),
                 parameter_dictionary->included_files_.end(),
                 filename) != parameter_dictionary->included_files_.end()) {
@@ -447,6 +471,7 @@ int LuaParameterDictionary::LuaInclude(lua_State* L) {
   lua_pop(L, 1);
   CHECK_EQ(lua_gettop(L), 0);
 
+  // 判断了2次文件是否存在
   const std::string content =
       parameter_dictionary->file_resolver_->GetFileContentOrDie(basename);
   CheckForLuaErrors(
